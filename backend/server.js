@@ -8,6 +8,7 @@ import authRoutes from "./routes/auth.routes.js";
 import leaderboardRoutes from "./routes/leaderboard.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import homeRoutes from "./routes/home.routes.js";
+import quizRoutes from "./routes/quiz.routes.js";
 
 dotenv.config();
 connectDB();
@@ -23,6 +24,7 @@ app.get("/", (req, res) => {
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/questions", questionRoutes);
+app.use("/api/quizzes", quizRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/home", homeRoutes);

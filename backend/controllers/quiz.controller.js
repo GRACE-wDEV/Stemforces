@@ -1,5 +1,6 @@
 import Quiz from "../models/quiz.model.js";
 import Question from "../models/question.model.js";
+import { updateUserProgress } from "../utils/progressTracker.js";
 
 // Get all quizzes for admin
 export const getAdminQuizzes = async (req, res) => {
@@ -281,6 +282,98 @@ export const quickCreateQuiz = async (req, res) => {
 
   } catch (error) {
     console.error("Error creating quick quiz:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
+// Submit quiz results and update user progress
+export const submitQuiz = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { answers, timeTaken } = req.body;
+
+    if (!answers || typeof timeTaken !== 'number') {
+      return res.status(400).json({
+        success: false,
+        message: "Quiz answers and time taken are required"
+      });
+    }
+
+    // Get the quiz with questions
+    const quiz = await Quiz.findById(id)
+      .populate({
+        path: 'questions',
+        select: 'correctAnswer subject'
+      });
+
+    if (!quiz) {
+      return res.status(404).json({
+        success: false,
+        message: "Quiz not found"
+      });
+    }
+
+    // Calculate score
+    let questionsCorrect = 0;
+    const results = [];
+
+    quiz.questions.forEach((question, index) => {
+      const userAnswer = answers[question._id];
+      const isCorrect = userAnswer === question.correctAnswer;
+      
+      if (isCorrect) {
+        questionsCorrect++;
+      }
+
+      results.push({
+        questionId: question._id,
+        userAnswer,
+        correctAnswer: question.correctAnswer,
+        isCorrect
+      });
+    });
+
+    const questionsTotal = quiz.questions.length;
+    const scorePercentage = Math.round((questionsCorrect / questionsTotal) * 100);
+
+    // Check if this is user's first quiz
+    const UserProgress = (await import("../models/userProgress.model.js")).default;
+    const existingProgress = await UserProgress.findOne({ user_id: req.user.id });
+    const isFirstQuiz = !existingProgress || existingProgress.total_quizzes_completed === 0;
+
+    // Update user progress
+    const progressUpdate = await updateUserProgress(req.user.id, {
+      subject: quiz.subject,
+      questionsCorrect,
+      questionsTotal,
+      timeTaken,
+      quizId: quiz._id,
+      isFirstQuiz
+    });
+
+    res.json({
+      success: true,
+      data: {
+        score: scorePercentage,
+        questionsCorrect,
+        questionsTotal,
+        timeTaken,
+        results,
+        progressUpdate: {
+          xpEarned: progressUpdate.xpEarned,
+          newLevel: progressUpdate.newLevel,
+          currentStreak: progressUpdate.currentStreak,
+          totalXP: progressUpdate.totalXP
+        }
+      },
+      message: `Quiz completed! Score: ${scorePercentage}%`
+    });
+
+  } catch (error) {
+    console.error("Error submitting quiz:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error"

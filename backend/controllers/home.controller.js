@@ -1,18 +1,170 @@
 import Question from "../models/question.model.js";
 import Quiz from "../models/quiz.model.js";
 import User from "../models/user.model.js";
+import UserProgress from "../models/userProgress.model.js";
+import Achievement from "../models/achievement.model.js";
+
+// Helper function to get real user stats
+const getUserStats = async (userId) => {
+  if (!userId) {
+    // Return guest stats
+    return {
+      totalQuestions: 0,
+      correctAnswers: 0,
+      streak: 0,
+      xp: 0,
+      level: 1,
+      rank: 0,
+      timeSpent: 0,
+      averageScore: 0,
+      isGuest: true
+    };
+  }
+
+  try {
+    const userProgress = await UserProgress.findOne({ user_id: userId });
+    
+    if (!userProgress) {
+      // Create initial progress for new user
+      const newProgress = await UserProgress.create({
+        user_id: userId,
+        total_questions_attempted: 0,
+        total_questions_correct: 0,
+        total_xp: 0,
+        level: 1,
+        current_streak: 0
+      });
+      
+      return {
+        totalQuestions: 0,
+        correctAnswers: 0,
+        streak: 0,
+        xp: 0,
+        level: 1,
+        rank: 0,
+        timeSpent: 0,
+        averageScore: 0,
+        isGuest: false
+      };
+    }
+
+    // Calculate level based on XP (200 XP per level)
+    const level = Math.floor(userProgress.total_xp / 200) + 1;
+    
+    // Calculate average score
+    const averageScore = userProgress.total_questions_attempted > 0 
+      ? Math.round((userProgress.total_questions_correct / userProgress.total_questions_attempted) * 100)
+      : 0;
+
+    // Get user rank (based on XP)
+    const higherRankUsers = await UserProgress.countDocuments({
+      total_xp: { $gt: userProgress.total_xp }
+    });
+    const rank = higherRankUsers + 1;
+
+    return {
+      totalQuestions: userProgress.total_questions_attempted,
+      correctAnswers: userProgress.total_questions_correct,
+      streak: userProgress.current_streak,
+      xp: userProgress.total_xp,
+      level: level,
+      rank: rank,
+      timeSpent: userProgress.total_time_spent,
+      averageScore: averageScore,
+      isGuest: false
+    };
+  } catch (error) {
+    console.error("Error getting user stats:", error);
+    return {
+      totalQuestions: 0,
+      correctAnswers: 0,
+      streak: 0,
+      xp: 0,
+      level: 1,
+      rank: 0,
+      timeSpent: 0,
+      averageScore: 0,
+      isGuest: false
+    };
+  }
+};
+
+// Helper function to get recent achievements
+const getRecentAchievements = async (userId) => {
+  if (!userId) {
+    return [];
+  }
+
+  try {
+    const achievements = await Achievement.find({ user_id: userId })
+      .sort({ earned_at: -1 })
+      .limit(5)
+      .lean();
+
+    return achievements.map(achievement => ({
+      id: achievement._id,
+      title: achievement.title,
+      description: achievement.description,
+      icon: achievement.icon,
+      unlocked: getTimeAgo(achievement.earned_at),
+      isRare: achievement.is_rare,
+      subject: achievement.subject
+    }));
+  } catch (error) {
+    console.error("Error getting achievements:", error);
+    return [];
+  }
+};
+
+// Helper function to calculate completed questions per subject
+const getSubjectProgress = async (userId, subjectQuestions) => {
+  if (!userId || subjectQuestions.length === 0) {
+    return 0;
+  }
+
+  try {
+    const userProgress = await UserProgress.findOne({ user_id: userId });
+    if (!userProgress) return 0;
+
+    const subjectProgress = userProgress.subject_progress.find(
+      sp => sp.subject.toLowerCase() === subjectQuestions[0].subject.toLowerCase()
+    );
+
+    return subjectProgress ? subjectProgress.questions_correct : 0;
+  } catch (error) {
+    console.error("Error getting subject progress:", error);
+    return 0;
+  }
+};
+
+// Helper function to format time ago
+const getTimeAgo = (date) => {
+  const now = new Date();
+  const diffInSeconds = Math.floor((now - new Date(date)) / 1000);
+  
+  if (diffInSeconds < 60) return 'Just now';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
+  if (diffInSeconds < 2419200) return `${Math.floor(diffInSeconds / 604800)} weeks ago`;
+  return `${Math.floor(diffInSeconds / 2419200)} months ago`;
+};
 
 export const getHomePageData = async (req, res) => {
   try {
+    // Get user ID from request (if authenticated)
+    const userId = req.user?._id;
+
     // Define all available subjects (always show these)
     const standardSubjects = [
       'Math',
       'Arabic', 
-      'English',
-      'Science',
-      'Social Studies',
       'Physics',
       'Chemistry',
+      'English',
+      'Deutsch',
+      'Earth Science',
+      'French',
       'Biology'
     ];
 
@@ -88,6 +240,9 @@ export const getHomePageData = async (req, res) => {
       // Combine all topics
       const allTopics = [...questionTopics, ...quizTopics];
 
+      // Get real subject progress for authenticated users
+      const completedQuestions = await getSubjectProgress(userId, subjectQuestions);
+
       // Subject icon mapping - Professional icons
       const iconMap = {
         'Math': '∫',
@@ -130,47 +285,14 @@ export const getHomePageData = async (req, res) => {
         color: colorMap[subject] || 'bg-gray-500',
         totalQuestions: subjectQuestions.length,
         totalQuizzes: subjectQuizzes.length,
-        completedQuestions: Math.floor(subjectQuestions.length * 0.3), // Mock completion
+        completedQuestions: completedQuestions, // Real progress data
         topics: allTopics
       });
     }
 
-    // Mock user stats (in a real app, this would come from user progress tracking)
-    const userStats = {
-      totalQuestions: questions.length,
-      correctAnswers: Math.floor(questions.length * 0.76),
-      streak: 12,
-      xp: 1520,
-      level: 8,
-      rank: 15,
-      timeSpent: 3450,
-      averageScore: 76.5
-    };
-
-    // Recent achievements (mock data)
-    const recentAchievements = [
-      { 
-        id: 1, 
-        title: 'Speed Demon', 
-        description: 'Completed quiz in under 30 seconds', 
-        icon: '⚡', 
-        unlocked: '2 days ago' 
-      },
-      { 
-        id: 2, 
-        title: 'Perfect Score', 
-        description: 'Got 100% on Physics quiz', 
-        icon: '🎯', 
-        unlocked: '1 week ago' 
-      },
-      { 
-        id: 3, 
-        title: 'Streak Master', 
-        description: 'Maintained 10-day streak', 
-        icon: '🔥', 
-        unlocked: '2 weeks ago' 
-      }
-    ];
+    // Get real user stats and achievements
+    const userStats = await getUserStats(userId);
+    const recentAchievements = await getRecentAchievements(userId);
 
     res.json({
       success: true,

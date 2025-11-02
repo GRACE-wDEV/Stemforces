@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { 
@@ -32,12 +32,28 @@ const QuizPage = () => {
   const [showResults, setShowResults] = useState(false);
   const [customTime, setCustomTime] = useState(estimatedTime || 30);
   const [timerStarted, setTimerStarted] = useState(false);
+  const [submittingQuiz, setSubmittingQuiz] = useState(false);
+  const [quizResults, setQuizResults] = useState(null);
 
   // Fetch quiz data from API
   const { data: quizApiData, isLoading: quizLoading, error: quizError } = useQuery({
     queryKey: ['quiz-data', subjectId, topicId],
     queryFn: async () => {
       console.log('Fetching quiz data for:', subjectId, topicId);
+      
+      // First try to get quiz by ID (if topicId is a quiz ID)
+      try {
+        const response = await fetch(`http://localhost:5000/api/quizzes/${topicId}`);
+        if (response.ok) {
+          const result = await response.json();
+          console.log('Quiz data received:', result.data);
+          return result.data;
+        }
+      } catch {
+        console.log('Quiz not found by ID, trying topic-based fetch...');
+      }
+      
+      // Fallback to topic-based API
       const response = await fetch(`http://localhost:5000/api/home/quiz/${subjectId}/${topicId}`);
       if (!response.ok) {
         throw new Error('Failed to fetch quiz data');
@@ -49,13 +65,67 @@ const QuizPage = () => {
     enabled: !!subjectId && !!topicId
   });
 
-  const quizData = quizApiData || {
+  const quizData = useMemo(() => quizApiData || {
     id: `${subjectId}-${topicId}`,
     title: topicName || 'Quiz',
     subject: subjectName || 'Subject',
     difficulty: difficulty || 'Medium',
     questions: []
-  };
+  }, [quizApiData, subjectId, topicId, topicName, subjectName, difficulty]);
+
+  const handleFinishQuiz = useCallback(async () => {
+    setSubmittingQuiz(true);
+    setTimerStarted(false);
+
+    try {
+      // Prepare answers in the format expected by the API
+      const answers = {};
+      quizData.questions.forEach(question => {
+        // Map our frontend answer format to backend format
+        const selectedChoice = selectedAnswers[question.id];
+        if (selectedChoice && question.choices) {
+          const choice = question.choices.find(c => c.id === selectedChoice);
+          if (choice) {
+            // Use the question's _id for backend and choice text as answer
+            answers[question._id || question.id] = choice.text;
+          }
+        }
+      });
+
+      const timeTaken = (customTime * 60 - timeLeft) / 60; // Convert back to minutes
+
+      // Submit quiz if we have a valid quiz ID
+      if (quizData._id) {
+        console.log('Submitting quiz:', { answers, timeTaken });
+        
+        const token = localStorage.getItem('token');
+        const response = await fetch(`http://localhost:5000/api/quizzes/${quizData._id}/submit`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            answers,
+            timeTaken
+          })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('Quiz submission result:', result);
+          setQuizResults(result.data);
+        } else {
+          console.error('Failed to submit quiz:', response.statusText);
+        }
+      }
+    } catch (error) {
+      console.error('Error submitting quiz:', error);
+    } finally {
+      setSubmittingQuiz(false);
+      setShowResults(true);
+    }
+  }, [quizData, selectedAnswers, customTime, timeLeft]);
 
   // Timer effect
   useEffect(() => {
@@ -64,7 +134,8 @@ const QuizPage = () => {
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          handleFinishQuiz();
+          // Call finish quiz when timer runs out
+          setTimeout(() => handleFinishQuiz(), 100);
           return 0;
         }
         return prev - 1;
@@ -72,7 +143,7 @@ const QuizPage = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [timerStarted, showResults, timeLeft]);
+  }, [timerStarted, showResults, timeLeft, handleFinishQuiz]);
 
   // Show loading state while fetching quiz data
   if (quizLoading) {
@@ -167,12 +238,21 @@ const QuizPage = () => {
     }
   };
 
-  const handleFinishQuiz = () => {
-    setShowResults(true);
-    setTimerStarted(false);
-  };
-
   const calculateResults = () => {
+    // Use real API results if available
+    if (quizResults) {
+      return {
+        correct: quizResults.questionsCorrect,
+        total: quizResults.questionsTotal,
+        percentage: quizResults.score,
+        timeUsed: quizResults.timeTaken * 60, // Convert back to seconds for display
+        xpEarned: quizResults.progressUpdate?.xpEarned || 0,
+        newLevel: quizResults.progressUpdate?.newLevel || 1,
+        currentStreak: quizResults.progressUpdate?.currentStreak || 0
+      };
+    }
+
+    // Fallback to client-side calculation
     let correct = 0;
     let total = quizData.questions.length;
     
@@ -190,7 +270,10 @@ const QuizPage = () => {
       correct,
       total,
       percentage: Math.round((correct / total) * 100),
-      timeUsed: (customTime * 60) - timeLeft
+      timeUsed: (customTime * 60) - timeLeft,
+      xpEarned: correct * 10,
+      newLevel: 1,
+      currentStreak: 0
     };
   };
 
@@ -321,12 +404,18 @@ const QuizPage = () => {
               {results.percentage >= 80 ? "Excellent work! 🎉" : 
                results.percentage >= 60 ? "Good job! 👍" : "Keep practicing! 💪"}
             </p>
+            {submittingQuiz && (
+              <div className="mt-4 text-yellow-100">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mx-auto mb-2"></div>
+                Saving your progress...
+              </div>
+            )}
           </div>
 
           {/* Score Summary */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 mb-8">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Your Results</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
               <div className="text-center">
                 <div className="text-3xl font-bold text-blue-500 mb-1">{results.percentage}%</div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">Score</div>
@@ -340,10 +429,29 @@ const QuizPage = () => {
                 <div className="text-sm text-gray-600 dark:text-gray-400">Time Used</div>
               </div>
               <div className="text-center">
-                <div className="text-3xl font-bold text-orange-500 mb-1">+{results.correct * 10}</div>
+                <div className="text-3xl font-bold text-orange-500 mb-1">+{results.xpEarned}</div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">XP Earned</div>
               </div>
+              {results.newLevel > 1 && (
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-yellow-500 mb-1">Lv.{results.newLevel}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Level</div>
+                </div>
+              )}
             </div>
+            
+            {/* Progress and Achievement Info */}
+            {quizResults && (
+              <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <h3 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">Progress Update</h3>
+                <div className="text-sm text-blue-800 dark:text-blue-200">
+                  {results.currentStreak > 1 && (
+                    <p>🔥 Current streak: {results.currentStreak} days</p>
+                  )}
+                  <p>📊 Your progress has been saved to your profile</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Question by Question Breakdown */}

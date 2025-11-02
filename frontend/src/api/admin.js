@@ -1,8 +1,6 @@
 import api from "./axios.js";
 
-// Dashboard APIs
 export const adminAPI = {
-  // Dashboard
   getDashboardStats: () => api.get("/admin/dashboard/stats"),
 
   // Questions Management
