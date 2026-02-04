@@ -3,13 +3,15 @@ import mongoose from "mongoose";
 const choiceSchema = new mongoose.Schema({
   id: { type: String, required: true },
   text: { type: String, required: true },
-  is_correct: { type: Boolean, default: false }
+  is_correct: { type: Boolean, default: false },
+  image_url: { type: String } // Optional image for choice
 });
 
 const questionSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
     question_text: { type: String, required: true },
+    image_url: { type: String }, // Main question image
     choices: [choiceSchema],
     difficulty: {
       type: String,
@@ -21,6 +23,11 @@ const questionSchema = new mongoose.Schema(
       type: String, 
       required: true,
       enum: ["Math", "Physics", "Chemistry", "French", "Geology", "Biology", "English", "Deutsch", "Arabic", "Mechanics"]
+    },
+    // Category/Folder reference
+    category: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Category"
     },
     source: { type: String, required: true },
     tags: [{ type: String }],
@@ -42,7 +49,7 @@ const questionSchema = new mongoose.Schema(
       required: true,
     },
     version: { type: Number, default: 1 },
-    published: { type: Boolean, default: false },
+    published: { type: Boolean, default: true },
     deleted_at: { type: Date, default: null },
   },
   { timestamps: true }

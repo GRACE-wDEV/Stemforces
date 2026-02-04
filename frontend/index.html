@@ -2,18 +2,77 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="./logo1.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Stemforces</title>
+    <link rel="icon" type="image/png" href="/logo1.png" />
+    <link rel="apple-touch-icon" href="/logo1.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#6366f1" />
+    <meta name="description" content="STEMFORCES - Master STEM subjects with quizzes, challenges, and AI-powered tutoring" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="STEMFORCES" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="STEMFORCES" />
+    <meta name="format-detection" content="telephone=no" />
+    <title>STEMFORCES - STEM Learning Platform</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Freckle+Face&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Caveat+Brush&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Schoolbell&display=swap" rel="stylesheet">
+    <style>
+      /* Splash screen for PWA */
+      #pwa-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        transition: opacity 0.3s ease-out;
+      }
+      #pwa-splash.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #pwa-splash img {
+        width: 120px;
+        height: 120px;
+        animation: pulse 2s infinite;
+      }
+      #pwa-splash h1 {
+        color: white;
+        font-family: 'Freckle Face', cursive;
+        font-size: 2rem;
+        margin-top: 1rem;
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+      }
+    </style>
   </head>
   <body>
+    <div id="pwa-splash">
+      <img src="/logo1.png" alt="STEMFORCES" />
+      <h1>STEMFORCES</h1>
+    </div>
     <div id="root"></div>
     <script type="module" src="./src/main.jsx"></script>
+    <script>
+      // Hide splash screen when app is ready
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          const splash = document.getElementById('pwa-splash');
+          if (splash) splash.classList.add('hidden');
+          setTimeout(() => splash?.remove(), 300);
+        }, 500);
+      });
+    </script>
   </body>
 </html>

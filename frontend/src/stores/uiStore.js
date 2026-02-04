@@ -1,8 +1,32 @@
 import { create } from 'zustand';
 
+// Get initial theme from system preference or localStorage
+const getInitialTheme = () => {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('stemforces-theme');
+    if (stored) return stored;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  return 'dark';
+};
+
+// Apply theme to document
+const applyTheme = (theme) => {
+  if (typeof document !== 'undefined') {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('stemforces-theme', theme);
+  }
+};
+
+// Initialize theme on load
+if (typeof window !== 'undefined') {
+  const initialTheme = getInitialTheme();
+  applyTheme(initialTheme);
+}
+
 export const useUIStore = create((set, get) => ({
   // State
-  theme: 'light',
+  theme: getInitialTheme(),
   sidebarOpen: false,
   notifications: [],
   loading: {},
@@ -11,13 +35,18 @@ export const useUIStore = create((set, get) => ({
   // Theme Actions
   setTheme: (theme) => {
     set({ theme });
-    document.documentElement.setAttribute('data-theme', theme);
+    applyTheme(theme);
   },
 
   toggleTheme: () => {
     const currentTheme = get().theme;
     const newTheme = currentTheme === 'light' ? 'dark' : 'light';
     get().setTheme(newTheme);
+  },
+
+  initializeTheme: () => {
+    const theme = getInitialTheme();
+    get().setTheme(theme);
   },
 
   // Sidebar Actions

@@ -1,41 +1,154 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { 
-  User, 
-  Mail, 
-  Trophy, 
-  Target, 
-  Calendar, 
-  Settings, 
-  LogOut,
-  Edit3,
-  Save,
-  X,
-  BookOpen,
-  Award,
-  TrendingUp
-} from "lucide-react";
 import { useAuthStore } from "../stores/authStore";
+import { getStudyRecommendations } from "../api/ai";
 import api from "../api/axios";
+import LaTeXRenderer from "../components/common/LaTeXRenderer";
+import { calculateLevel, getLevelProgress } from "../utils/levelUtils";
+import { useToast } from "../stores/toastStore";
 
 export default function ProfilePage() {
   const { user, logout } = useAuthStore();
+  const { success, error: showError } = useToast();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(user?.name || "");
   const [isSaving, setIsSaving] = useState(false);
+  const [stats, setStats] = useState(null);
+  const [, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [recommendations, setRecommendations] = useState(null);
+  const [loadingRecs, setLoadingRecs] = useState(false);
+  const [activities, setActivities] = useState([]);
+  const [loadingActivities, setLoadingActivities] = useState(false);
+  
+  // API Key management state
+  const [hasApiKey, setHasApiKey] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [savingApiKey, setSavingApiKey] = useState(false);
+  const [validatingKey, setValidatingKey] = useState(false);
+
+  // Check if user has API key on mount
+  useEffect(() => {
+    const checkApiKey = async () => {
+      try {
+        const res = await api.get('/auth/me/api-key/status');
+        setHasApiKey(res.data.hasApiKey);
+      } catch (err) {
+        console.error('Failed to check API key status', err);
+      }
+    };
+    if (user) checkApiKey();
+  }, [user]);
+
+  // Fetch user stats
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        // Fetch comprehensive stats from the new endpoint
+        const [statsRes, badgesRes] = await Promise.allSettled([
+          api.get('/auth/me/stats'),
+          api.get('/achievements/badges')
+        ]);
+
+        const statsData = statsRes.status === 'fulfilled' ? statsRes.value.data?.data : null;
+        const badgesData = badgesRes.status === 'fulfilled' ? badgesRes.value.data?.data : null;
+
+        setStats({
+          streak: {
+            currentStreak: statsData?.currentStreak || 0,
+            longestStreak: statsData?.longestStreak || 0
+          },
+          badges: badgesData?.earned || [],
+          xp: statsData?.totalXP || user?.score || 0,
+          questionsAnswered: statsData?.totalQuestions || 0,
+          accuracy: statsData?.accuracy || 0,
+          quizzesCompleted: statsData?.quizzesCompleted || 0,
+          subjectProgress: statsData?.subjectProgress || [],
+          level: statsData?.level || 1
+        });
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+        setStats({
+          streak: { currentStreak: 0, longestStreak: 0 },
+          badges: [],
+          xp: user?.score || 0,
+          questionsAnswered: 0,
+          accuracy: 0,
+          quizzesCompleted: 0,
+          subjectProgress: [],
+          level: 1
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user) fetchStats();
+  }, [user]);
+
+  // Fetch AI study recommendations
+  const fetchRecommendations = async () => {
+    if (recommendations || loadingRecs) return;
+    
+    setLoadingRecs(true);
+    try {
+      const performanceData = {
+        subjects: ['Math', 'Physics', 'Chemistry', 'Biology'],
+        accuracy: stats?.accuracy || 0,
+        questionsAnswered: stats?.questionsAnswered || 0,
+        weakTopics: user?.weakTopics || [],
+        strongTopics: user?.strongTopics || []
+      };
+      
+      const response = await getStudyRecommendations(performanceData);
+      if (response.success) {
+        setRecommendations(response.data.recommendations);
+      }
+    } catch (error) {
+      console.error('Error fetching recommendations:', error);
+    } finally {
+      setLoadingRecs(false);
+    }
+  };
+
+  // Load recommendations when switching to that tab
+  useEffect(() => {
+    if (activeTab === 'recommendations') {
+      fetchRecommendations();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  // Fetch recent activities when overview tab active
+  useEffect(() => {
+    const fetchActivities = async () => {
+      setLoadingActivities(true);
+      try {
+        const res = await api.get('/auth/me/activities');
+        setActivities(res.data.activities || []);
+      } catch (err) {
+        console.error('Failed to fetch activities', err);
+        setActivities([]);
+      } finally {
+        setLoadingActivities(false);
+      }
+    };
+
+    if (activeTab === 'overview') fetchActivities();
+  }, [activeTab]);
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="text-center card max-w-md">
-          <User className="w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Please Login</h3>
-          <p className="text-gray-600 dark:text-gray-300 mb-4">You need to be logged in to view your profile.</p>
-          <button 
-            onClick={() => navigate("/login")}
-            className="btn-primary"
-          >
+      <div className="page-container" style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="card" style={{ textAlign: 'center', maxWidth: 400 }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>👤</div>
+          <h3 style={{ marginBottom: 8 }}>Please Login</h3>
+          <p className="text-secondary" style={{ marginBottom: 24 }}>
+            You need to be logged in to view your profile.
+          </p>
+          <button className="btn btn-primary" onClick={() => navigate("/login")}>
             Go to Login
           </button>
         </div>
@@ -48,248 +161,738 @@ export default function ProfilePage() {
     navigate("/login");
   };
 
-  const handleSaveEdit = () => {
-    const save = async () => {
-      try {
-        setIsSaving(true);
-        const res = await api.put('/auth/me', { name: editedName });
-        useAuthStore.getState().updateProfile({ name: res.data.name });
-        setIsEditing(false);
-        // (theres no global toast; ill use alert for now)
-        alert('Profile updated');
-      } catch (err) {
-        console.error('Failed to update profile', err);
-        alert(err.response?.data?.message || 'Failed to update profile');
-      } finally {
-        setIsSaving(false);
+  const handleSaveEdit = async () => {
+    try {
+      setIsSaving(true);
+      const res = await api.put('/auth/me', { name: editedName });
+      useAuthStore.getState().updateProfile({ name: res.data.name });
+      setIsEditing(false);
+      success('Profile updated successfully!');
+    } catch (err) {
+      console.error('Failed to update profile', err);
+      showError('Failed to update profile. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Handle saving API key
+  const handleSaveApiKey = async () => {
+    if (!apiKeyInput.trim()) {
+      showError('Please enter an API key');
+      return;
+    }
+    
+    setSavingApiKey(true);
+    setValidatingKey(true);
+    
+    try {
+      // First validate the key
+      const validateRes = await api.post('/ai/validate-key', { apiKey: apiKeyInput });
+      
+      if (!validateRes.data.success) {
+        showError(validateRes.data.message || 'Invalid API key');
+        setValidatingKey(false);
+        setSavingApiKey(false);
+        return;
       }
-    };
-
-    save();
+      
+      setValidatingKey(false);
+      
+      // Save the key
+      await api.put('/auth/me/api-key', { apiKey: apiKeyInput });
+      
+      setHasApiKey(true);
+      setShowApiKeyInput(false);
+      setApiKeyInput('');
+      success('Gemini API key saved successfully! AI features are now enabled.');
+    } catch (err) {
+      console.error('Failed to save API key', err);
+      showError('Failed to save API key. Please try again.');
+    } finally {
+      setSavingApiKey(false);
+      setValidatingKey(false);
+    }
   };
 
-  const handleCancelEdit = () => {
-    setEditedName(user.name);
-    setIsEditing(false);
+  // Handle removing API key
+  const handleRemoveApiKey = async () => {
+    try {
+      await api.put('/auth/me/api-key', { apiKey: null });
+      setHasApiKey(false);
+      success('API key removed');
+    } catch (err) {
+      console.error('Failed to remove API key', err);
+      showError('Failed to remove API key');
+    }
   };
+
+  const level = calculateLevel(stats?.xp || user?.score || 0);
+  const levelProgress = getLevelProgress(stats?.xp || user?.score || 0);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* header */}
-        <div className="card mb-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 bg-gradient-to-r  to-black rounded-full flex items-center justify-center">
-                <User className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My Profile</h1>
-                <p className="text-gray-600 dark:text-gray-300 mt-1">Manage your account and track your progress</p>
+    <div className="page-container">
+      <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+        {/* Profile Header */}
+        <div className="card" style={{ marginBottom: 24 }}>
+          <div className="profile-header">
+            <div className="profile-avatar">
+              <span>{user.name?.charAt(0)?.toUpperCase() || '?'}</span>
+              <div className="level-badge">Lv.{level}</div>
+            </div>
+            
+            <div className="profile-info">
+              {isEditing ? (
+                <div className="edit-name">
+                  <input
+                    type="text"
+                    value={editedName}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    className="input-field"
+                    style={{ marginBottom: 8 }}
+                  />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button 
+                      className="btn btn-primary" 
+                      onClick={handleSaveEdit}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? 'Saving...' : 'Save'}
+                    </button>
+                    <button className="btn btn-secondary" onClick={() => setIsEditing(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <h1 style={{ margin: 0 }}>{user.name}</h1>
+                    <button 
+                      className="icon-btn"
+                      onClick={() => setIsEditing(true)}
+                      title="Edit name"
+                    >
+                      ✏️
+                    </button>
+                  </div>
+                  <p className="text-secondary" style={{ margin: '4px 0 0' }}>{user.email}</p>
+                </>
+              )}
+              
+              {/* XP Progress Bar */}
+              <div className="xp-progress" style={{ marginTop: 16 }}>
+                <div className="xp-header">
+                  <span className="xp-label">Level {level}</span>
+                  <span className="xp-value">{levelProgress.progress} / {levelProgress.required} XP</span>
+                </div>
+                <div className="progress-bar">
+                  <div 
+                    className="progress-fill" 
+                    style={{ width: `${levelProgress.percentage}%` }}
+                  />
+                </div>
               </div>
             </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center space-x-2 px-4 py-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-            >
-              <LogOut className="w-5 h-5" />
-              <span>Logout</span>
+
+            <button className="btn btn-danger" onClick={handleLogout}>
+              Log Out
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* left column - user info */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* personal info */}
-            <div className="card">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Personal Information</h2>
-                {!isEditing ? (
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="flex items-center space-x-2 px-3 py-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                  >
-                    <Edit3 className="w-4 h-4" />
-                    <span>Edit</span>
-                  </button>
-                ) : (
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={handleSaveEdit}
-                      disabled={isSaving}
-                      className={`flex items-center space-x-1 px-3 py-2 rounded-lg transition-colors ${isSaving ? 'bg-green-400 text-white cursor-wait' : 'bg-green-600 text-white hover:bg-green-700'}`}
-                    >
-                      <Save className="w-4 h-4" />
-                      <span>{isSaving ? 'Saving...' : 'Save'}</span>
-                    </button>
-                    <button
-                      onClick={handleCancelEdit}
-                      className="flex items-center space-x-1 px-3 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                      <span>Cancel</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center space-x-3">
-                  <User className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={editedName}
-                        onChange={(e) => setEditedName(e.target.value)}
-                        className="form-input"
-                      />
-                    ) : (
-                      <p className="text-gray-900 dark:text-white font-medium">{user.name}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-3">
-                  <Mail className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email Address</label>
-                    <p className="text-gray-900 dark:text-white">{user.email}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-3">
-                  <Calendar className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Member Since</label>
-                    <p className="text-gray-900 dark:text-white">
-                      {user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', { 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      }) : 'Unknown'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* recent activity */}
-            <div className="card">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Recent Activity</h2>
-              <div className="space-y-4">
-                <div className="flex items-center space-x-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                  <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
-                    <BookOpen className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900 dark:text-white">Completed Math Quiz</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">Scored 85% on a URT past exam</p>
-                  </div>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">2 hours ago</span>
-                </div>
-
-                <div className="flex items-center space-x-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                  <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center">
-                    <Award className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900 dark:text-white">Achievement Unlocked</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">First 10 questions answered correctly</p>
-                  </div>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">1 day ago</span>
-                </div>
-
-                <div className="flex items-center space-x-4 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                  <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center">
-                    <TrendingUp className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900 dark:text-white">Ranking Improved</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">Moved up 5 positions on leaderboard</p>
-                  </div>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">3 days ago</span>
-                </div>
-              </div>
-            </div>
+        {/* Stats Grid */}
+        <div className="stats-grid" style={{ marginBottom: 24 }}>
+          <div className="stat-card">
+            <div className="stat-icon">🔥</div>
+            <div className="stat-value">{stats?.streak?.currentStreak || 0}</div>
+            <div className="stat-label">Day Streak</div>
           </div>
-
-          {/* right column - stats */}
-          <div className="space-y-6">
-            {/* score card */}
-            <div className="card text-center">
-              <div className="w-16 h-16 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Trophy className="w-8 h-8 text-white" />
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{user.score || 0}</h3>
-              <p className="text-gray-600 dark:text-gray-300 mb-4">Total Points</p>
-              <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                <div 
-                  className="bg-gradient-to-r from-yellow-500 to-orange-500 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min((user.score || 0) / 1000 * 100, 100)}%` }}
-                ></div>
-              </div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Next milestone: 1000 points</p>
-            </div>
-
-            {/* quick stats */}
-            <div className="card">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Stats</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Target className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    <span className="text-gray-600 dark:text-gray-300">Questions Answered</span>
-                  </div>
-                  <span className="font-semibold text-gray-900 dark:text-white">0</span>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Award className="w-4 h-4 text-green-600 dark:text-green-400" />
-                    <span className="text-gray-600 dark:text-gray-300">Accuracy Rate</span>
-                  </div>
-                  <span className="font-semibold text-gray-900 dark:text-white">0%</span>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <TrendingUp className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                    <span className="text-gray-600 dark:text-gray-300">Current Streak</span>
-                  </div>
-                  <span className="font-semibold text-gray-900 dark:text-white">0 days</span>
-                </div>
-              </div>
-            </div>
-
-            {/* settings */}
-            <div className="card">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Settings</h3>
-              <div className="space-y-3">
-                <button className="w-full flex items-center space-x-3 p-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                  <Settings className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                  <span className="text-gray-700 dark:text-gray-200">Preferences</span>
-                </button>
-                
-                <button className="w-full flex items-center space-x-3 p-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                  <User className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                  <span className="text-gray-700 dark:text-gray-200">Privacy Settings</span>
-                </button>
-                
-                <button 
-                  onClick={handleLogout}
-                  className="w-full flex items-center space-x-3 p-3 text-left hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-red-600 dark:text-red-400"
-                >
-                  <LogOut className="w-5 h-5" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
-            </div>
+          <div className="stat-card">
+            <div className="stat-icon">⚡</div>
+            <div className="stat-value">{stats?.xp || 0}</div>
+            <div className="stat-label">Total XP</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon">📝</div>
+            <div className="stat-value">{stats?.questionsAnswered || 0}</div>
+            <div className="stat-label">Questions</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon">✅</div>
+            <div className="stat-value">{stats?.quizzesCompleted || 0}</div>
+            <div className="stat-label">Quizzes</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon">🎯</div>
+            <div className="stat-value">{stats?.accuracy || 0}%</div>
+            <div className="stat-label">Accuracy</div>
           </div>
         </div>
+
+        {/* Tabs */}
+        <div className="tabs" style={{ marginBottom: 24 }}>
+          <button 
+            className={`tab ${activeTab === 'overview' ? 'active' : ''}`}
+            onClick={() => setActiveTab('overview')}
+          >
+            Overview
+          </button>
+          <button 
+            className={`tab ${activeTab === 'achievements' ? 'active' : ''}`}
+            onClick={() => setActiveTab('achievements')}
+          >
+            Achievements
+          </button>
+          <button 
+            className={`tab ${activeTab === 'recommendations' ? 'active' : ''}`}
+            onClick={() => setActiveTab('recommendations')}
+          >
+            🤖 AI Recommendations
+          </button>
+          <button 
+            className={`tab ${activeTab === 'settings' ? 'active' : ''}`}
+            onClick={() => setActiveTab('settings')}
+          >
+            ⚙️ Settings
+          </button>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'overview' && (
+          <div className="card">
+            <h3 style={{ marginBottom: 16 }}>Recent Activity</h3>
+            <div className="activity-list">
+              {loadingActivities ? (
+                <div className="loading-state">Loading activities...</div>
+              ) : activities.length === 0 ? (
+                <div className="empty-state">No recent activity. Take a quiz to get started!</div>
+              ) : (
+                activities.map((act, idx) => (
+                  <div className="activity-item" key={idx}>
+                    <span className="activity-icon">
+                      {act.type === 'achievement' ? (act.icon || '🏆') : '📚'}
+                    </span>
+                    <div className="activity-content">
+                      <p>{act.title}</p>
+                      <span className="text-secondary">{act.subtitle || ''}{act.xp ? ` • +${act.xp} XP` : ''}</span>
+                    </div>
+                    <span className="activity-time">{new Date(act.time).toLocaleString()}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'achievements' && (
+          <div className="card">
+            <h3 style={{ marginBottom: 16 }}>Your Badges</h3>
+            {stats?.badges?.length > 0 ? (
+              <div className="badges-grid">
+                {stats.badges.map((badge, idx) => (
+                  <div key={idx} className="badge-card">
+                    <span className="badge-icon">{badge.icon || '🏅'}</span>
+                    <span className="badge-name">{badge.name}</span>
+                    <span className="badge-desc text-secondary">{badge.description}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state">
+                <span style={{ fontSize: 48 }}>🎖️</span>
+                <p>No badges yet. Keep learning to earn achievements!</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'recommendations' && (
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <span style={{ fontSize: 24 }}>🤖</span>
+              <h3 style={{ margin: 0 }}>AI Study Recommendations</h3>
+            </div>
+            
+            {!hasApiKey ? (
+              <div className="empty-state">
+                <span style={{ fontSize: 48, marginBottom: 16, display: 'block' }}>🔑</span>
+                <p style={{ marginBottom: 16 }}>Add your Gemini API key in Settings to unlock AI features!</p>
+                <button className="btn btn-primary" onClick={() => setActiveTab('settings')}>
+                  Go to Settings
+                </button>
+              </div>
+            ) : loadingRecs ? (
+              <div className="loading-state">
+                <div className="spinner" />
+                <p>AI is analyzing your performance...</p>
+              </div>
+            ) : recommendations ? (
+              <div className="recommendations-content">
+                <LaTeXRenderer content={recommendations} />
+              </div>
+            ) : (
+              <div className="empty-state">
+                <button className="btn btn-primary" onClick={fetchRecommendations}>
+                  Get Personalized Recommendations
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'settings' && (
+          <div className="card">
+            <h3 style={{ marginBottom: 24 }}>⚙️ Settings</h3>
+            
+            {/* Gemini API Key Section */}
+            <div className="settings-section">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <span style={{ fontSize: 24 }}>🤖</span>
+                <div>
+                  <h4 style={{ margin: 0 }}>Gemini API Key</h4>
+                  <p className="text-secondary" style={{ margin: '4px 0 0', fontSize: 13 }}>
+                    Enable AI features with your free Google Gemini API key
+                  </p>
+                </div>
+              </div>
+              
+              {hasApiKey && !showApiKeyInput ? (
+                <div className="api-key-status">
+                  <div className="status-badge status-success">
+                    <span>✅</span> API Key Configured
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    <button 
+                      className="btn btn-secondary"
+                      onClick={() => setShowApiKeyInput(true)}
+                    >
+                      Update Key
+                    </button>
+                    <button 
+                      className="btn btn-danger-outline"
+                      onClick={handleRemoveApiKey}
+                    >
+                      Remove Key
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="api-key-input-section">
+                  {!showApiKeyInput && !hasApiKey && (
+                    <div className="api-key-info">
+                      <div className="info-box">
+                        <p><strong>🎉 Get your FREE API key:</strong></p>
+                        <ol style={{ margin: '12px 0', paddingLeft: 20 }}>
+                          <li>Go to <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="link">Google AI Studio</a></li>
+                          <li>Sign in with your Google account</li>
+                          <li>Click "Create API Key"</li>
+                          <li>Copy and paste it below</li>
+                        </ol>
+                        <p className="text-secondary" style={{ fontSize: 12 }}>
+                          It's completely free with generous limits!
+                        </p>
+                      </div>
+                      <button 
+                        className="btn btn-primary"
+                        onClick={() => setShowApiKeyInput(true)}
+                        style={{ marginTop: 16 }}
+                      >
+                        Add API Key
+                      </button>
+                    </div>
+                  )}
+                  
+                  {showApiKeyInput && (
+                    <div className="api-key-form">
+                      <input
+                        type="password"
+                        value={apiKeyInput}
+                        onChange={(e) => setApiKeyInput(e.target.value)}
+                        placeholder="Paste your Gemini API key here..."
+                        className="input-field"
+                        style={{ marginBottom: 12 }}
+                      />
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button 
+                          className="btn btn-primary"
+                          onClick={handleSaveApiKey}
+                          disabled={savingApiKey || !apiKeyInput.trim()}
+                        >
+                          {validatingKey ? 'Validating...' : savingApiKey ? 'Saving...' : 'Save Key'}
+                        </button>
+                        <button 
+                          className="btn btn-secondary"
+                          onClick={() => {
+                            setShowApiKeyInput(false);
+                            setApiKeyInput('');
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
+
+      <style>{`
+        .profile-header {
+          display: flex;
+          align-items: flex-start;
+          gap: 24px;
+          flex-wrap: wrap;
+        }
+
+        .profile-avatar {
+          width: 100px;
+          height: 100px;
+          background: linear-gradient(135deg, var(--primary) 0%, #a855f7 100%);
+          border-radius: 24px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 40px;
+          font-weight: 700;
+          color: white;
+          position: relative;
+          flex-shrink: 0;
+        }
+
+        .level-badge {
+          position: absolute;
+          bottom: -8px;
+          right: -8px;
+          background: var(--bg-primary);
+          border: 2px solid var(--primary);
+          color: var(--primary);
+          padding: 4px 10px;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .profile-info {
+          flex: 1;
+          min-width: 200px;
+        }
+
+        .profile-info h1 {
+          font-size: 24px;
+        }
+
+        .icon-btn {
+          background: var(--bg-secondary);
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          padding: 6px 10px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .icon-btn:hover {
+          background: var(--bg-tertiary);
+        }
+
+        .xp-progress {
+          max-width: 300px;
+        }
+
+        .xp-header {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 6px;
+          font-size: 12px;
+        }
+
+        .xp-label {
+          font-weight: 600;
+          color: var(--text-primary);
+        }
+
+        .xp-value {
+          color: var(--text-secondary);
+        }
+
+        .progress-bar {
+          height: 8px;
+          background: var(--bg-tertiary);
+          border-radius: 4px;
+          overflow: hidden;
+        }
+
+        .progress-fill {
+          height: 100%;
+          background: linear-gradient(90deg, var(--primary), #a855f7);
+          border-radius: 4px;
+          transition: width 0.3s ease;
+        }
+
+        .btn-danger {
+          background: rgba(239, 68, 68, 0.1);
+          color: #ef4444;
+          border: 1px solid rgba(239, 68, 68, 0.3);
+          margin-left: auto;
+        }
+
+        .btn-danger:hover {
+          background: rgba(239, 68, 68, 0.2);
+        }
+
+        .stats-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 16px;
+        }
+
+        @media (max-width: 768px) {
+          .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+
+        .stat-card {
+          background: var(--bg-primary);
+          border: 1px solid var(--border-color);
+          border-radius: 16px;
+          padding: 20px;
+          text-align: center;
+          transition: all 0.2s;
+        }
+
+        .stat-card:hover {
+          transform: translateY(-2px);
+          border-color: var(--primary);
+        }
+
+        .stat-icon {
+          font-size: 28px;
+          margin-bottom: 8px;
+        }
+
+        .stat-value {
+          font-size: 28px;
+          font-weight: 700;
+          color: var(--text-primary);
+        }
+
+        .stat-label {
+          font-size: 13px;
+          color: var(--text-secondary);
+          margin-top: 4px;
+        }
+
+        .tabs {
+          display: flex;
+          gap: 4px;
+          padding: 4px;
+          background: var(--bg-secondary);
+          border-radius: 12px;
+          width: fit-content;
+        }
+
+        .tab {
+          padding: 10px 20px;
+          background: none;
+          border: none;
+          border-radius: 8px;
+          color: var(--text-secondary);
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .tab:hover {
+          color: var(--text-primary);
+        }
+
+        .tab.active {
+          background: var(--bg-primary);
+          color: var(--text-primary);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .activity-list {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .activity-item {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          padding: 14px;
+          background: var(--bg-secondary);
+          border-radius: 12px;
+        }
+
+        .activity-icon {
+          font-size: 24px;
+        }
+
+        .activity-content {
+          flex: 1;
+        }
+
+        .activity-content p {
+          margin: 0;
+          font-weight: 500;
+        }
+
+        .activity-content span {
+          font-size: 13px;
+        }
+
+        .activity-time {
+          font-size: 12px;
+          color: var(--text-secondary);
+        }
+
+        .badges-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+          gap: 16px;
+        }
+
+        .badge-card {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          padding: 20px;
+          background: var(--bg-secondary);
+          border-radius: 12px;
+          gap: 8px;
+        }
+
+        .badge-icon {
+          font-size: 36px;
+        }
+
+        .badge-name {
+          font-weight: 600;
+          font-size: 14px;
+        }
+
+        .badge-desc {
+          font-size: 12px;
+        }
+
+        .empty-state {
+          text-align: center;
+          padding: 40px;
+          color: var(--text-secondary);
+        }
+
+        .loading-state {
+          text-align: center;
+          padding: 40px;
+        }
+
+        .spinner {
+          width: 32px;
+          height: 32px;
+          border: 3px solid var(--bg-tertiary);
+          border-top-color: var(--primary);
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+          margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .recommendations-content {
+          line-height: 1.7;
+        }
+
+        .recommendations-content p {
+          margin: 0 0 12px;
+        }
+
+        .recommendations-content ul {
+          margin: 0 0 12px;
+          padding-left: 20px;
+        }
+
+        /* Settings Styles */
+        .settings-section {
+          padding: 20px;
+          background: var(--bg-secondary);
+          border-radius: 12px;
+          border: 1px solid var(--border-color);
+        }
+
+        .status-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 16px;
+          border-radius: 8px;
+          font-weight: 500;
+        }
+
+        .status-success {
+          background: rgba(34, 197, 94, 0.1);
+          color: #22c55e;
+          border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .btn-danger-outline {
+          background: transparent;
+          color: #ef4444;
+          border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-danger-outline:hover {
+          background: rgba(239, 68, 68, 0.1);
+        }
+
+        .info-box {
+          background: var(--bg-tertiary);
+          border: 1px solid var(--border-color);
+          border-radius: 12px;
+          padding: 16px;
+        }
+
+        .info-box ol {
+          color: var(--text-secondary);
+        }
+
+        .info-box li {
+          margin-bottom: 8px;
+        }
+
+        .link {
+          color: var(--primary);
+          text-decoration: none;
+        }
+
+        .link:hover {
+          text-decoration: underline;
+        }
+
+        .input-field {
+          width: 100%;
+          padding: 12px 16px;
+          border-radius: 8px;
+          border: 1px solid var(--border-color);
+          background: var(--bg-primary);
+          color: var(--text-primary);
+          font-size: 14px;
+        }
+
+        .input-field:focus {
+          outline: none;
+          border-color: var(--primary);
+        }
+      `}</style>
     </div>
   );
 }

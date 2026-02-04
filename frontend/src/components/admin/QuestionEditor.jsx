@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Save, Eye, Code, Bold, Italic, List, ListOrdered } from "lucide-react";
+import { X, Save, Eye, Code, Bold, Italic, List, ListOrdered, Image, Trash2, Upload } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "react-hot-toast";
 import { adminAPI } from "../../api/admin.js";
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 const QuestionEditor = ({ question, onSave, onCancel }) => {
   const [formData, setFormData] = useState({
     title: question?.title || "",
     question_text: question?.question_text || question?.description || "",
+    image_url: question?.image_url || "",
     subject: question?.subject || "",
     difficulty: question?.difficulty || "medium",
     published: question?.published || false,
@@ -25,6 +28,56 @@ const QuestionEditor = ({ question, onSave, onCancel }) => {
   });
 
   const [activeTab, setActiveTab] = useState("editor");
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  // Image upload handler
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be smaller than 5MB');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const response = await adminAPI.uploadImage(file);
+      const imageUrl = response.data.url;
+      setFormData({ ...formData, image_url: imageUrl });
+      toast.success('Image uploaded successfully');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to upload image');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Remove image handler
+  const handleRemoveImage = async () => {
+    if (formData.image_url) {
+      const filename = formData.image_url.split('/').pop();
+      try {
+        await adminAPI.deleteImage(filename);
+      } catch (error) {
+        // Ignore delete errors, just remove from form
+        console.log('Failed to delete image from server:', error);
+      }
+      setFormData({ ...formData, image_url: '' });
+      toast.success('Image removed');
+    }
+  };
 
   // Text editing functions
   const insertText = (before, after = '') => {
@@ -120,7 +173,7 @@ const QuestionEditor = ({ question, onSave, onCancel }) => {
     if (!formData.question_text.trim()) {
       toast.error("Question text is required");
       return;
-    }
+    } 
     if (formData.choices.filter(c => c.text.trim()).length < 2) {
       toast.error("At least 2 choices are required");
       return;
@@ -384,11 +437,76 @@ const QuestionEditor = ({ question, onSave, onCancel }) => {
                   </p>
                 </div>
 
-                {/* Choices */}
+                {/* Question Image Upload */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Answer Choices *
+                    Question Image (Optional)
                   </label>
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-4 bg-gray-50/50 dark:bg-gray-800/30">
+                    {formData.image_url ? (
+                      <div className="relative">
+                        <img 
+                          src={`${API_BASE_URL}${formData.image_url}`}
+                          alt="Question" 
+                          className="max-h-48 mx-auto rounded-lg shadow-md"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleRemoveImage}
+                          className="absolute top-2 right-2 p-2 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition-colors"
+                          title="Remove image"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                          id="question-image-upload"
+                        />
+                        <label
+                          htmlFor="question-image-upload"
+                          className={`cursor-pointer inline-flex flex-col items-center justify-center p-6 ${
+                            isUploading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700/50'
+                          } rounded-lg transition-colors`}
+                        >
+                          {isUploading ? (
+                            <>
+                              <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                              <span className="text-sm text-gray-600 dark:text-gray-400">Uploading...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                              <span className="text-sm text-gray-600 dark:text-gray-400">
+                                Click to upload an image
+                              </span>
+                              <span className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                PNG, JPG, GIF up to 5MB
+                              </span>
+                            </>
+                          )}
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Choices */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Answer Choices *
+                    </label>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {formData.choices.length} options (min: 2)
+                    </span>
+                  </div>
                   <div className="space-y-3">
                     {formData.choices.map((choice, index) => (
                       <div key={index} className="group relative">
@@ -424,7 +542,8 @@ const QuestionEditor = ({ question, onSave, onCancel }) => {
                             <button
                               type="button"
                               onClick={() => removeChoice(index)}
-                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              title="Remove this choice"
                             >
                               <X className="w-4 h-4" />
                             </button>
@@ -644,6 +763,17 @@ const QuestionPreview = ({ question }) => {
             <p className="text-gray-500 dark:text-gray-400 italic">Question text will appear here...</p>
           )}
         </div>
+
+        {/* Question Image */}
+        {question.image_url && (
+          <div className="mt-4">
+            <img 
+              src={`${API_BASE_URL}${question.image_url}`}
+              alt="Question illustration" 
+              className="max-w-full rounded-lg shadow-md mx-auto"
+            />
+          </div>
+        )}
         
         {/* Show formatting hints */}
         <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-600">

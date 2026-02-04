@@ -204,7 +204,8 @@ const AnalyticsDashboard = () => {
   );
 };
 
-const MetricCard = ({ title, value, icon: IconComponent, color }) => {
+const MetricCard = ({ title, value, icon, color }) => {
+  const IconComponent = icon;
   const colorClasses = {
     blue: "bg-blue-500 text-blue-100",
     green: "bg-green-500 text-green-100",
@@ -223,9 +224,9 @@ const MetricCard = ({ title, value, icon: IconComponent, color }) => {
             {value}
           </p>
         </div>
-        <div className={`p-3 rounded-lg ${colorClasses[color]}`}>
-          <IconComponent className="w-6 h-6" />
-        </div>
+          <div className={`p-3 rounded-lg ${colorClasses[color]}`}>
+            {IconComponent && <IconComponent className="w-6 h-6" />}
+          </div>
       </div>
     </div>
   );

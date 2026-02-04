@@ -164,3 +164,92 @@ export const addMultipleQuestions = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// @desc   Browse questions by subject (get sources and topics)
+// @route  GET /api/questions/browse/:subject
+// @access Public
+export const browseBySubject = async (req, res) => {
+  try {
+    const { subject } = req.params;
+    
+    // Get unique sources for this subject (include all questions, not just published)
+    const sources = await Question.distinct('source', { subject });
+    
+    // Get unique topics for this subject
+    const topics = await Question.distinct('tags', { subject });
+    
+    // Get counts
+    const totalCount = await Question.countDocuments({ subject });
+    
+    // Get counts by difficulty
+    const difficultyAgg = await Question.aggregate([
+      { $match: { subject } },
+      { $group: { _id: '$difficulty', count: { $sum: 1 } } }
+    ]);
+    
+    const difficultyCounts = {};
+    difficultyAgg.forEach(d => {
+      difficultyCounts[d._id] = d.count;
+    });
+    
+    res.json({
+      success: true,
+      sources,
+      topics: topics.filter(t => t), // filter out null/empty
+      counts: {
+        total: totalCount,
+        ...difficultyCounts
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc   Get quiz questions with filters
+// @route  GET /api/questions/quiz
+// @access Public
+export const getQuizQuestions = async (req, res) => {
+  try {
+    const { 
+      subject, 
+      source, 
+      topic, 
+      difficulty, 
+      count = 10 
+    } = req.query;
+    
+    const filter = {};
+    
+    if (subject) filter.subject = subject;
+    if (source) filter.source = source;
+    if (topic) filter.tags = topic;
+    if (difficulty && difficulty !== 'all') filter.difficulty = difficulty;
+    
+    // Get random questions matching the filter
+    const questions = await Question.aggregate([
+      { $match: filter },
+      { $sample: { size: parseInt(count) } },
+      { 
+        $project: {
+          title: 1,
+          question_text: 1,
+          choices: 1,
+          difficulty: 1,
+          subject: 1,
+          source: 1,
+          time_limit_seconds: 1,
+          explanation: 1
+        }
+      }
+    ]);
+    
+    res.json({
+      success: true,
+      count: questions.length,
+      questions
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

@@ -17,7 +17,20 @@ export const protect = async (req, res, next) => {
   }
 };
 
-
+// Optional auth - doesn't reject if no token, just sets req.user if valid
+export const optionalAuth = async (req, res, next) => {
+  if (req.headers.authorization?.startsWith("Bearer")) {
+    try {
+      const token = req.headers.authorization.split(" ")[1];
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      req.user = await User.findById(decoded.id).select("-password");
+    } catch (error) {
+      // Token invalid, continue without user
+      req.user = null;
+    }
+  }
+  next();
+};
 
 export const admin = (req, res, next) => {
   if (req.user && req.user.role === "admin") {

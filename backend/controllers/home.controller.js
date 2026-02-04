@@ -192,29 +192,37 @@ export const getHomePageData = async (req, res) => {
         return false;
       });
 
-      // Get question-based topics (legacy approach)
+      // Get question-based topics (legacy approach) - only for sources without quizzes
       const sources = [...new Set(subjectQuestions.map(q => q.source))].filter(Boolean);
-      const questionTopics = sources.map(source => {
-        const topicQuestions = subjectQuestions.filter(q => q.source === source);
+      
+      // Get quiz sources to avoid duplicates
+      const quizSources = new Set(subjectQuizzes.map(q => q.source).filter(Boolean));
+      const quizTitles = new Set(subjectQuizzes.map(q => q.title));
+      
+      const questionTopics = sources
+        // Filter out sources that already have quizzes (avoid duplication)
+        .filter(source => !quizSources.has(source) && !quizTitles.has(source))
+        .map(source => {
+          const topicQuestions = subjectQuestions.filter(q => q.source === source);
         
-        // Calculate difficulty distribution
-        const difficulties = topicQuestions.map(q => q.difficulty);
-        const difficultyMode = difficulties.sort((a,b) =>
-          difficulties.filter(v => v === a).length - difficulties.filter(v => v === b).length
-        ).pop() || 'Intermediate';
+          // Calculate difficulty distribution
+          const difficulties = topicQuestions.map(q => q.difficulty);
+          const difficultyMode = difficulties.sort((a,b) =>
+            difficulties.filter(v => v === a).length - difficulties.filter(v => v === b).length
+          ).pop() || 'Intermediate';
         
-        // Estimate time based on question count (2 minutes per question, minimum 1 minute)
-        const estimatedTime = Math.max(1, Math.min(60, topicQuestions.length * 2));
+          // Estimate time based on question count (2 minutes per question, minimum 1 minute)
+          const estimatedTime = Math.max(1, Math.min(60, topicQuestions.length * 2));
         
-        return {
-          id: source.toLowerCase().replace(/\s+/g, '-'),
-          name: source,
-          type: 'question-topic',
-          questions: topicQuestions.length,
-          difficulty: difficultyMode,
-          estimatedTime: estimatedTime
-        };
-      });
+          return {
+            id: source.toLowerCase().replace(/\s+/g, '-'),
+            name: source,
+            type: 'question-topic',
+            questions: topicQuestions.length,
+            difficulty: difficultyMode,
+            estimatedTime: estimatedTime
+          };
+        });
 
       // Get quiz-based topics
       const quizTopics = subjectQuizzes.map(quiz => {
@@ -340,17 +348,20 @@ export const getQuizQuestions = async (req, res) => {
 
       // Transform quiz questions to quiz format
       const quizQuestions = quiz.questions.map((q, index) => ({
-        id: q._id,
+        id: q._id.toString(),
+        _id: q._id,
         question: q.question_text || q.description || q.title,
+        question_text: q.question_text,
         choices: q.choices && q.choices.length > 0 ? q.choices.map((choice, i) => ({
-          id: String.fromCharCode(97 + i), // a, b, c, d
+          id: choice.id || choice._id?.toString() || String(i + 1),
           text: choice.text || choice.choice_text || `Option ${i + 1}`,
+          is_correct: choice.is_correct || choice.correct || false,
           isCorrect: choice.is_correct || choice.correct || false
         })) : [
-          { id: 'a', text: 'Option A', isCorrect: true },
-          { id: 'b', text: 'Option B', isCorrect: false },
-          { id: 'c', text: 'Option C', isCorrect: false },
-          { id: 'd', text: 'Option D', isCorrect: false }
+          { id: '1', text: 'Option A', is_correct: true, isCorrect: true },
+          { id: '2', text: 'Option B', is_correct: false, isCorrect: false },
+          { id: '3', text: 'Option C', is_correct: false, isCorrect: false },
+          { id: '4', text: 'Option D', is_correct: false, isCorrect: false }
         ],
         explanation: q.explanation || "No explanation provided.",
         difficulty: q.difficulty || 'Medium',
@@ -394,17 +405,20 @@ export const getQuizQuestions = async (req, res) => {
 
       // Transform questions to quiz format
       const quizQuestions = questions.map((q, index) => ({
-        id: q._id,
+        id: q._id.toString(),
+        _id: q._id,
         question: q.question_text || q.description || q.title,
+        question_text: q.question_text,
         choices: q.choices && q.choices.length > 0 ? q.choices.map((choice, i) => ({
-          id: String.fromCharCode(97 + i), // a, b, c, d
+          id: choice.id || choice._id?.toString() || String(i + 1),
           text: choice.text || choice.choice_text || `Option ${i + 1}`,
+          is_correct: choice.is_correct || choice.correct || false,
           isCorrect: choice.is_correct || choice.correct || false
         })) : [
-          { id: 'a', text: 'Option A', isCorrect: true },
-          { id: 'b', text: 'Option B', isCorrect: false },
-          { id: 'c', text: 'Option C', isCorrect: false },
-          { id: 'd', text: 'Option D', isCorrect: false }
+          { id: '1', text: 'Option A', is_correct: true, isCorrect: true },
+          { id: '2', text: 'Option B', is_correct: false, isCorrect: false },
+          { id: '3', text: 'Option C', is_correct: false, isCorrect: false },
+          { id: '4', text: 'Option D', is_correct: false, isCorrect: false }
         ],
         explanation: q.explanation || "No explanation provided.",
         difficulty: q.difficulty || 'Medium',

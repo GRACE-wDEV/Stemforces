@@ -24,6 +24,9 @@ const userSchema = new mongoose.Schema(
     bio: { type: String },
     department: { type: String },
     
+    // User's own Gemini API key for AI features (BYOK - Bring Your Own Key)
+    geminiApiKey: { type: String, select: false }, // select: false hides it from queries by default
+    
     // Account status
     active: { type: Boolean, default: true },
     email_verified: { type: Boolean, default: false },

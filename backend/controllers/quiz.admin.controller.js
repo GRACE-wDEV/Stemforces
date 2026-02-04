@@ -23,7 +23,7 @@ const logAction = async (userId, actionType, resourceType, resourceId, changes =
 // @access Private (admin/editor)
 export const getAdminQuizzes = async (req, res) => {
   try {
-    const { page = 1, limit = 20, search, published, created_by } = req.query;
+    const { page = 1, limit = 20, search, published, created_by, subject, category } = req.query;
 
     let filter = {};
     if (search) {
@@ -34,6 +34,8 @@ export const getAdminQuizzes = async (req, res) => {
     }
     if (published !== undefined) filter.published = published === 'true';
     if (created_by) filter.created_by = created_by;
+    if (subject) filter.subject = subject;
+    if (category) filter.category = category;
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 

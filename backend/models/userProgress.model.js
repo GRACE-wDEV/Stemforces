@@ -55,8 +55,7 @@ const userProgressSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Index for better performance
-userProgressSchema.index({ user_id: 1 });
+// Indexes for better performance (user_id already has unique index)
 userProgressSchema.index({ "daily_activity.date": 1 });
 userProgressSchema.index({ total_xp: -1 }); // For leaderboards
 

@@ -8,6 +8,8 @@ import {
   addMultipleQuestions,
   getRandomQuestion,
   searchQuestions,
+  browseBySubject,
+  getQuizQuestions,
 } from "../controllers/question.controller.js";
 import {protect, admin} from "../middlewares/auth.middleware.js";
 
@@ -20,6 +22,8 @@ router.route("/")
 router.route("/search/:keyword").get(searchQuestions);
 router.route("/random").get(getRandomQuestion);
 router.route("/bulk").post(protect, admin, addMultipleQuestions);
+router.route("/browse/:subject").get(browseBySubject);
+router.route("/quiz").get(getQuizQuestions);
 
 router.route("/:id")
   .get(getQuestionById)

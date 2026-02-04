@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { Mail, Lock, Eye, EyeOff, Brain, ArrowRight } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, Zap, ArrowRight } from "lucide-react";
 import api from "../api/axios";
 import { useAuthStore } from "../stores/authStore";
 
@@ -21,7 +21,6 @@ const LoginPage = () => {
     onSuccess: (data) => {
       login(data);
       navigate("/");
-      
     },
     onError: (err) => {
       setError(err.response?.data?.message || "Login failed");
@@ -35,62 +34,67 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem-1px)] flex items-center justify-center px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        {/* header */}
-        <div className="text-center">
-          <div className="mx-auto w-16 h-16 border rounded-full flex items-center justify-center mb-4">
-            <Brain className="w-8 h-8 text-white" />
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-12 bg-[var(--bg-primary)]">
+      <div className="w-full max-w-md">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-[var(--brand-primary)] mb-4">
+            <Zap className="w-7 h-7 text-white" />
           </div>
-          <h2 className="text-4xl font-bold font-schoolbell text-gray-600 mb-2">Welcome back!</h2>
-          <p className="text-gray-600 font-caveat text-2xl leading-3">Sign in to continue your STEM journey</p>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)] mb-2">
+            Welcome back
+          </h1>
+          <p className="text-[var(--text-secondary)]">
+            Sign in to continue your learning journey
+          </p>
         </div>
 
-        {/* login form */}
-        <div className="card">
-          <form className="space-y-5" onSubmit={handleSubmit}>
+        {/* Form Card */}
+        <div className="card p-6 sm:p-8">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Error Message */}
             {error && (
-              <div className="bg-black border-[.5px]  border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              <div className="p-3 rounded-lg bg-[var(--error)]/10 border border-[var(--error)]/20 text-[var(--error)] text-sm">
                 {error}
               </div>
             )}
 
-            {/* email*/}
-            <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium text-gray-700">
+            {/* Email Field */}
+            <div>
+              <label htmlFor="email" className="label">
                 Email Address
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
+                  <Mail className="h-5 w-5 text-[var(--text-muted)]" />
                 </div>
                 <input
                   id="email"
                   type="email"
                   required
-                  className="form-input pl-10"
-                  placeholder="Enter your email"
+                  className="input pl-10"
+                  placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
             </div>
 
-            {/* password */}
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium text-gray-700">
+            {/* Password Field */}
+            <div>
+              <label htmlFor="password" className="label">
                 Password
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
+                  <Lock className="h-5 w-5 text-[var(--text-muted)]" />
                 </div>
                 <input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   required
-                  className="form-input pl-10 pr-10"
-                  placeholder="Enter your password"
+                  className="input pl-10 pr-10"
+                  placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
@@ -100,43 +104,52 @@ const LoginPage = () => {
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
-                    <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                    <EyeOff className="h-5 w-5 text-[var(--text-muted)] hover:text-[var(--text-secondary)]" />
                   ) : (
-                    <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                    <Eye className="h-5 w-5 text-[var(--text-muted)] hover:text-[var(--text-secondary)]" />
                   )}
                 </button>
               </div>
             </div>
 
-            {/* submit */}
+            {/* Submit Button */}
             <button
               type="submit"
               disabled={mutation.isPending}
-              className="btn-primary mx-w-3xl mx-auto flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn btn-primary w-full"
             >
-              <span>{mutation.isPending ? "Signing in..." : "Sign In"}</span>
-              {!mutation.isPending && <ArrowRight className="w-4 h-4" />}
+              {mutation.isPending ? (
+                <>
+                  <div className="spinner spinner-sm"></div>
+                  <span>Signing in...</span>
+                </>
+              ) : (
+                <>
+                  <span>Sign In</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
 
-          {/* footer */}
+          {/* Footer */}
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-[var(--text-secondary)]">
               Don't have an account?{" "}
               <Link
                 to="/signup"
-                className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
+                className="font-medium text-[var(--brand-primary)] hover:underline"
               >
-                Sign up here
+                Sign up
               </Link>
             </p>
           </div>
         </div>
 
-        {/* additional */}
-        <div className="text-center text-sm text-gray-500">
-          <p>Join thousands of students mastering STEM subjects</p>
-        </div>
+        {/* Additional Info */}
+        <p className="text-center text-sm text-[var(--text-tertiary)] mt-6">
+          Join thousands of students mastering STEM subjects
+        </p>
       </div>
     </div>
   );

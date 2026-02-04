@@ -24,9 +24,34 @@ export const adminAPI = {
   exportQuestions: (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
     return api.get(`/admin/questions/export?${queryString}`, {
-      responseType: 'blob' // For file downloads
+      responseType: 'blob'
     });
   },
+
+  // Image Upload
+  uploadImage: (file) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    return api.post('/upload/image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+  },
+
+  deleteImage: (filename) => api.delete(`/upload/image/${filename}`),
+
+  // Category Management
+  getCategories: (subject) => {
+    const params = subject ? `?subject=${subject}` : '';
+    return api.get(`/categories${params}`);
+  },
+
+  createCategory: (categoryData) => api.post("/categories", categoryData),
+
+  updateCategory: (id, categoryData) => api.put(`/categories/${id}`, categoryData),
+
+  deleteCategory: (id) => api.delete(`/categories/${id}`),
 
   // Quiz Management
   getQuizzes: (params = {}) => {
@@ -45,16 +70,13 @@ export const adminAPI = {
   publishQuiz: (id, published) => 
     api.patch(`/admin/quizzes/${id}/publish`, { published }),
 
-  // Subjects (if needed)
-  getSubjects: () => api.get("/subjects"),
+  // Subjects
+  getSubjects: () => api.get("/home/subjects"),
   
-  // Users (for admin user management)
-  getUsers: (params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
-    return api.get(`/auth/users`);
-  },
+  // Users
+  getUsers: () => api.get(`/auth/users`),
 
-  updateUserRole: (id, role) => api.patch(`/users/${id}/role`, { role }),
+  updateUserRole: (id, role) => api.patch(`/auth/users/${id}/role`, { role }),
   
-  toggleUserStatus: (id, active) => api.patch(`/users/${id}/status`, { active }),
+  toggleUserStatus: (id, active) => api.patch(`/auth/users/${id}/status`, { active }),
 };

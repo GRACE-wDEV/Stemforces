@@ -113,8 +113,12 @@ export const updateUserProgress = async (userId, quizResult) => {
       (subjectProgress.questions_correct / subjectProgress.questions_attempted) * 100
     );
 
-    // Add quiz attempt to history
-    userProgress.quiz_attempts.push({
+    // Update existing quiz attempt (claimed placeholder) or add new one
+    const existingAttemptIndex = userProgress.quiz_attempts.findIndex(
+      qa => qa.quiz_id?.toString() === quizId?.toString()
+    );
+    
+    const attemptData = {
       quiz_id: quizId,
       subject,
       score: scorePercentage,
@@ -122,7 +126,18 @@ export const updateUserProgress = async (userId, quizResult) => {
       questions_correct: questionsCorrect,
       questions_total: questionsTotal,
       completed_at: today
-    });
+    };
+    
+    if (existingAttemptIndex >= 0) {
+      // Update the claimed placeholder with actual data
+      userProgress.quiz_attempts[existingAttemptIndex] = {
+        ...userProgress.quiz_attempts[existingAttemptIndex],
+        ...attemptData
+      };
+    } else {
+      // Add new attempt (fallback for backwards compatibility)
+      userProgress.quiz_attempts.push(attemptData);
+    }
 
     // Update daily activity
     const todayStr = today.toDateString();
@@ -205,6 +220,43 @@ export const checkAndAwardAchievements = async (userId, userProgress, quizResult
         value: Math.round(avgTimePerQuestion),
         xp_reward: 60
       });
+    }
+
+    // Time-based badges
+    const hour = new Date().getHours();
+    
+    // Night Owl - completing quiz after 11 PM
+    if (hour >= 23 || hour < 5) {
+      const existingNightOwl = await Achievement.findOne({
+        user_id: userId,
+        achievement_type: 'night_owl'
+      });
+      if (!existingNightOwl) {
+        achievements.push({
+          achievement_type: 'night_owl',
+          title: 'Night Owl',
+          description: 'Completed a quiz after 11 PM!',
+          icon: '🦉',
+          xp_reward: 25
+        });
+      }
+    }
+    
+    // Early Bird - completing quiz before 7 AM
+    if (hour >= 5 && hour < 7) {
+      const existingEarlyBird = await Achievement.findOne({
+        user_id: userId,
+        achievement_type: 'early_bird'
+      });
+      if (!existingEarlyBird) {
+        achievements.push({
+          achievement_type: 'early_bird',
+          title: 'Early Bird',
+          description: 'Completed a quiz before 7 AM!',
+          icon: '🌅',
+          xp_reward: 25
+        });
+      }
     }
 
     // Streak Master Achievements
