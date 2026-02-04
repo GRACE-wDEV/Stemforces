@@ -50,8 +50,8 @@ const LoginPage = () => {
         </div>
 
         {/* Form Card */}
-        <div className="card p-6 sm:p-8">
-          <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="card p-8 sm:p-10">
+          <form onSubmit={handleSubmit} className="space-y-7">
             {/* Error Message */}
             {error && (
               <div className="p-3 rounded-lg bg-[var(--error)]/10 border border-[var(--error)]/20 text-[var(--error)] text-sm">

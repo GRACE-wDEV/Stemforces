@@ -92,7 +92,7 @@ export default function AchievementsPage() {
           <div className="icon-large">🏅</div>
           <h3>Login Required</h3>
           <p className="text-secondary">Sign in to view your achievements!</p>
-          <button className="btn btn-primary" onClick={() => navigate("/login")}>Login</button>
+          <button className="btn btn-primary" style={{ marginTop: '1rem' }} onClick={() => navigate("/login")}>Login</button>
         </div>
       </div>
     );

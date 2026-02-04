@@ -251,7 +251,7 @@ export default function ProfilePage() {
                     className="input-field"
                     style={{ marginBottom: 8 }}
                   />
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem' }}>
                     <button 
                       className="btn btn-primary" 
                       onClick={handleSaveEdit}
