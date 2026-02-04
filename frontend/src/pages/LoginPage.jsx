@@ -72,7 +72,7 @@ const LoginPage = () => {
                   id="email"
                   type="email"
                   required
-                  className="input pl-10"
+                  className="input pl-12"
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -93,7 +93,7 @@ const LoginPage = () => {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   required
-                  className="input pl-10 pr-10"
+                  className="input pl-12 pr-12"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -116,7 +116,7 @@ const LoginPage = () => {
             <button
               type="submit"
               disabled={mutation.isPending}
-              className="btn btn-primary w-full"
+              className="btn btn-primary w-full mt-8"
             >
               {mutation.isPending ? (
                 <>

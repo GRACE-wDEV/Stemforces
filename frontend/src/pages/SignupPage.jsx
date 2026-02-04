@@ -73,7 +73,7 @@ const SignupPage = () => {
                   id="name"
                   type="text"
                   required
-                  className="input pl-10"
+                  className="input pl-12"
                   placeholder="John Doe"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -94,7 +94,7 @@ const SignupPage = () => {
                   id="email"
                   type="email"
                   required
-                  className="input pl-10"
+                  className="input pl-12"
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -115,7 +115,7 @@ const SignupPage = () => {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   required
-                  className="input pl-10 pr-10"
+                  className="input pl-12 pr-12"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -141,7 +141,7 @@ const SignupPage = () => {
             <button
               type="submit"
               disabled={mutation.isPending}
-              className="btn btn-primary w-full"
+              className="btn btn-primary w-full mt-8"
             >
               {mutation.isPending ? (
                 <>
