@@ -101,11 +101,6 @@ app.use("/api/achievements", achievementRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/upload", uploadRoutes);
 
-// 404 handler for API routes (Express 5 syntax)
-app.use("/api/:path(*)", (req, res) => {
-  res.status(404).json({ message: "API endpoint not found" });
-});
-
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error("Error:", err);
