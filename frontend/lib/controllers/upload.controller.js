@@ -65,4 +65,4 @@ export const deleteImage = async (req, res) => {
     success: false, 
     message: 'Image deletion not supported in serverless mode. Images are stored as data URLs in the database.' 
   });
-
+};
