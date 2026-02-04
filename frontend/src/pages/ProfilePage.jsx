@@ -231,7 +231,7 @@ export default function ProfilePage() {
   const levelProgress = getLevelProgress(stats?.xp || user?.score || 0);
 
   return (
-    <div className="page-container">
+    <div className="page-container profile-page">
       <div style={{ maxWidth: 1000, margin: '0 auto' }}>
         {/* Profile Header */}
         <div className="card" style={{ marginBottom: 24 }}>
@@ -891,6 +891,87 @@ export default function ProfilePage() {
         .input-field:focus {
           outline: none;
           border-color: var(--primary);
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 480px) {
+          .profile-header {
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 16px;
+          }
+
+          .profile-avatar {
+            width: 80px;
+            height: 80px;
+            font-size: 32px;
+            border-radius: 20px;
+          }
+
+          .level-badge {
+            padding: 3px 8px;
+            font-size: 10px;
+          }
+
+          .profile-info {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+          }
+
+          .profile-info h1 {
+            font-size: 20px;
+          }
+
+          .stat-card {
+            padding: 14px;
+          }
+
+          .stat-icon {
+            font-size: 22px;
+          }
+
+          .stat-value {
+            font-size: 22px;
+          }
+
+          .stat-label {
+            font-size: 11px;
+          }
+
+          .tabs {
+            width: 100%;
+            justify-content: center;
+          }
+
+          .tab {
+            padding: 8px 14px;
+            font-size: 13px;
+          }
+
+          .badge-card {
+            padding: 14px;
+          }
+
+          .badge-icon {
+            font-size: 28px;
+          }
+
+          .badge-name {
+            font-size: 12px;
+          }
+
+          .settings-section {
+            padding: 16px;
+          }
+        }
+
+        /* Bottom padding for mobile nav */
+        @media (max-width: 768px) {
+          .profile-page {
+            padding-bottom: 100px;
+          }
         }
       `}</style>
     </div>

@@ -356,7 +356,7 @@ export default function DailyChallengePage() {
         .centered { min-height: 60vh; display: flex; align-items: center; justify-content: center; }
         .loading-brain { font-size: 64px; animation: bounce 1s infinite; }
         @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-        .daily-challenge { max-width: 800px; margin: 0 auto; }
+        .daily-challenge { max-width: 800px; margin: 0 auto; padding-bottom: 80px; }
         .challenge-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
         .header-left { display: flex; align-items: center; gap: 16px; }
         .challenge-icon { font-size: 40px; }

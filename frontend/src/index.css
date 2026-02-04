@@ -1033,6 +1033,11 @@ p {
   
   .container { padding: 0 1rem; }
   .hide-mobile { display: none !important; }
+  
+  /* Add bottom padding for mobile navigation */
+  .page-container {
+    padding-bottom: 100px !important;
+  }
 }
 
 @media (min-width: 769px) {

@@ -761,6 +761,7 @@ const styles = `
   }
 
   @media (max-width: 640px) {
+    .browse-page { padding-bottom: 100px; }
     .subjects-grid { grid-template-columns: 1fr; }
     .quizzes-grid { grid-template-columns: 1fr; }
     .quick-actions { grid-template-columns: 1fr; }

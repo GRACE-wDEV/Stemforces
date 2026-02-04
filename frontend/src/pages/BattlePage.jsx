@@ -1044,5 +1044,5 @@ const styles = `
   .btn-rematch { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px; background: var(--primary); color: white; border: none; border-radius: 12px; font-size: 1rem; font-weight: 600; cursor: pointer; }
   .btn-primary { padding: 14px 28px; background: var(--primary); color: white; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; }
 
-  @media (max-width: 600px) { .options-grid { grid-template-columns: 1fr; } .scoreboard { flex-direction: column; } }
+  @media (max-width: 600px) { .battle-page { padding-bottom: 100px; } .options-grid { grid-template-columns: 1fr; } .scoreboard { flex-direction: column; } }
 `;

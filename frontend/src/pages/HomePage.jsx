@@ -81,7 +81,7 @@ const HomePage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] pb-12">
+    <div className="min-h-screen bg-[var(--bg-primary)] pb-28 sm:pb-12">
       {/* Hero Section */}
       <div className="border-b border-[var(--border-primary)] bg-[var(--bg-secondary)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">

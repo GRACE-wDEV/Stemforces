@@ -240,6 +240,7 @@ export default function AchievementsPage() {
         .lock-icon { position: absolute; top: 12px; right: 12px; font-size: 20px; }
         
         @media (max-width: 640px) {
+          .achievements-page { padding-bottom: 100px; }
           .achievements-header { flex-direction: column; align-items: flex-start; }
           .achievements-grid { grid-template-columns: 1fr; }
         }

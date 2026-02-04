@@ -487,6 +487,74 @@ const QuizPage = () => {
             padding: 16px 32px;
             font-size: 16px;
           }
+
+          @media (max-width: 480px) {
+            .quiz-start-card {
+              padding: 20px;
+            }
+
+            .quiz-icon {
+              font-size: 48px;
+              margin-bottom: 12px;
+            }
+
+            .quiz-start-card h1 {
+              font-size: 22px;
+            }
+
+            .quiz-info-grid {
+              gap: 10px;
+              margin-bottom: 16px;
+            }
+
+            .quiz-info-item {
+              padding: 12px 8px;
+            }
+
+            .info-icon {
+              font-size: 18px;
+              margin-bottom: 4px;
+            }
+
+            .info-value {
+              font-size: 18px;
+            }
+
+            .info-label {
+              font-size: 10px;
+            }
+
+            .timer-selector {
+              margin-bottom: 16px;
+            }
+
+            .preset-btn {
+              padding: 8px 12px;
+              font-size: 13px;
+            }
+
+            .ai-feature-banner {
+              padding: 12px;
+              margin-bottom: 16px;
+            }
+
+            .ai-icon {
+              font-size: 24px;
+            }
+
+            .ai-feature-banner strong {
+              font-size: 14px;
+            }
+
+            .ai-feature-banner p {
+              font-size: 12px;
+            }
+
+            .btn-large {
+              padding: 14px 24px;
+              font-size: 15px;
+            }
+          }
         `}</style>
       </div>
     );

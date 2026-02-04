@@ -69,8 +69,7 @@
     },
     "files": [
       "dist/**/*",
-      "electron/**/*",
-      "public/logo1.png"
+      "electron/**/*"
     ],
     "win": {
       "target": [
@@ -83,16 +82,12 @@
           "arch": ["x64"]
         }
       ],
-      "icon": "public/logo1.png",
       "artifactName": "STEMFORCES-${version}-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "perMachine": true,
       "allowToChangeInstallationDirectory": true,
-      "installerIcon": "public/logo1.png",
-      "uninstallerIcon": "public/logo1.png",
-      "installerHeaderIcon": "public/logo1.png",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "STEMFORCES"

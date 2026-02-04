@@ -72,7 +72,8 @@ function createWindow() {
     // Open DevTools in development for debugging
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    // Load from Vercel in production
+    mainWindow.loadURL('https://stemforces.vercel.app');
   }
 
   // Debug: Log when page finishes loading
@@ -116,81 +117,27 @@ function createWindow() {
 }
 
 /**
- * Create the application menu
+ * Create a minimal, clean application menu
  */
 function createMenu() {
+  // Hide menu bar in production for cleaner look, show only in dev
+  if (!isDev) {
+    Menu.setApplicationMenu(null);
+    return;
+  }
+
+  // Dev menu only
   const template = [
     {
-      label: 'STEMFORCES',
+      label: 'Dev',
       submenu: [
-        { role: 'about' },
-        { type: 'separator' },
-        {
-          label: 'Check for Updates...',
-          click: () => {
-            dialog.showMessageBox(mainWindow, {
-              type: 'info',
-              title: 'Updates',
-              message: 'STEMFORCES is up to date!',
-              buttons: ['OK']
-            });
-          }
-        },
-        { type: 'separator' },
-        { role: 'hide' },
-        { role: 'hideOthers' },
-        { role: 'unhide' },
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
         { type: 'separator' },
         { role: 'quit' }
       ]
     },
-    {
-      label: 'Edit',
-      submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
-        { type: 'separator' },
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        { role: 'selectAll' }
-      ]
-    },
-    {
-      label: 'View',
-      submenu: [
-        { role: 'reload' },
-        { role: 'forceReload' },
-        { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
-        { type: 'separator' },
-        { role: 'togglefullscreen' },
-        ...(isDev ? [{ role: 'toggleDevTools' }] : [])
-      ]
-    },
-    {
-      label: 'Window',
-      submenu: [
-        { role: 'minimize' },
-        { role: 'zoom' },
-        { role: 'close' }
-      ]
-    },
-    {
-      label: 'Help',
-      submenu: [
-        {
-          label: 'Learn More',
-          click: () => shell.openExternal('https://github.com/yourusername/stemforces')
-        },
-        {
-          label: 'Report Issue',
-          click: () => shell.openExternal('https://github.com/yourusername/stemforces/issues')
-        }
-      ]
-    }
   ];
 
   const menu = Menu.buildFromTemplate(template);
