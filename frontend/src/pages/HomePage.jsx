@@ -22,22 +22,22 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { calculateLevel, getLevelProgress } from '../utils/levelUtils';
+import api from '../api/axios';
 
 const HomePage = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuthStore();
   const [selectedSubject, setSelectedSubject] = useState(null);
 
-  // Get subjects and quiz collections from API
-  const { data: homeData, isLoading } = useQuery({
-    queryKey: ['home-page-data'],
+  // Get subjects and quiz collections from API - use api instance for auth token
+  const { data: homeData, isLoading, refetch } = useQuery({
+    queryKey: ['home-page-data', isAuthenticated],
     queryFn: async () => {
-      const response = await fetch('/api/home/data');
-      if (!response.ok) {
-        throw new Error('Failed to fetch home page data');
-      }
-      return response.json();
-    }
+      const response = await api.get('/home/data');
+      return response.data;
+    },
+    // Refetch when auth status changes
+    staleTime: 30000
   });
 
   const subjects = homeData?.data?.subjects || [];

@@ -488,7 +488,7 @@ export const submitQuiz = async (req, res) => {
     const scorePercentage = Math.round((questionsCorrect / questionsTotal) * 100);
 
     // Check if this is user's first quiz
-    const isFirstQuiz = !existingProgress || existingProgress.total_quizzes_completed === 0;
+    const isFirstQuiz = !claimResult || claimResult.total_quizzes_completed === 0;
 
     // Update user progress
     const progressUpdate = await updateUserProgress(req.user.id, {
