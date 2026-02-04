@@ -60,14 +60,18 @@ Do not include any text before or after the JSON.`,
 };
 
 /**
- * Create a Gemini client with user's API key
+ * Create a Gemini client with user's API key or fallback to server key
  */
 const createGeminiClient = (apiKey) => {
-  if (!apiKey) {
+  // Use user's API key if provided, otherwise fall back to server key
+  const keyToUse = apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
+  
+  if (!keyToUse) {
+    console.warn('No Gemini API key available (user or server)');
     return null;
   }
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const genAI = new GoogleGenerativeAI(keyToUse);
     // Use gemini-1.5-flash - fast, efficient, and currently available
     return genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
   } catch (error) {
@@ -85,7 +89,7 @@ export const chatWithTutor = async (apiKey, message, context = {}) => {
   if (!model) {
     return {
       success: false,
-      message: 'Please add your Gemini API key in your profile settings to use AI features. Get a free key at https://aistudio.google.com/apikey'
+      message: 'AI is currently unavailable. Please try again later.'
     };
   }
   
@@ -126,7 +130,7 @@ export const explainWrongAnswer = async (apiKey, question, userAnswer, correctAn
   if (!model) {
     return {
       success: false,
-      explanation: 'Please add your Gemini API key in your profile to get AI explanations.'
+      explanation: 'AI is currently unavailable. Please try again later.'
     };
   }
   
@@ -165,7 +169,7 @@ export const getHint = async (apiKey, question, options, correctAnswer) => {
   if (!model) {
     return {
       success: false,
-      hint: 'Add your Gemini API key in profile settings for AI hints.'
+      hint: 'AI is currently unavailable. Please try again later.'
     };
   }
   
@@ -203,7 +207,7 @@ export const getStudyRecommendations = async (apiKey, performanceData) => {
   if (!model) {
     return {
       success: false,
-      recommendations: 'Please add your Gemini API key in your profile settings to get personalized study recommendations. Get a free key at https://aistudio.google.com/apikey'
+      recommendations: 'AI is currently unavailable. Please try again later.'
     };
   }
   
@@ -253,7 +257,7 @@ export const generateQuestion = async (apiKey, subject, topic, difficulty) => {
   if (!model) {
     return {
       success: false,
-      error: 'API key required'
+      error: 'AI is currently unavailable'
     };
   }
   

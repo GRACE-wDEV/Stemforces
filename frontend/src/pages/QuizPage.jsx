@@ -489,6 +489,11 @@ const QuizPage = () => {
           }
 
           @media (max-width: 480px) {
+            .quiz-start-container {
+              min-height: auto;
+              padding: 20px 0 100px;
+            }
+
             .quiz-start-card {
               padding: 20px;
             }
@@ -499,25 +504,26 @@ const QuizPage = () => {
             }
 
             .quiz-start-card h1 {
-              font-size: 22px;
+              font-size: 20px;
+              margin-bottom: 8px;
             }
 
             .quiz-info-grid {
-              gap: 10px;
+              gap: 8px;
               margin-bottom: 16px;
             }
 
             .quiz-info-item {
-              padding: 12px 8px;
+              padding: 10px 6px;
             }
 
             .info-icon {
-              font-size: 18px;
+              font-size: 16px;
               margin-bottom: 4px;
             }
 
             .info-value {
-              font-size: 18px;
+              font-size: 16px;
             }
 
             .info-label {
@@ -527,32 +533,49 @@ const QuizPage = () => {
             .timer-selector {
               margin-bottom: 16px;
             }
-
-            .preset-btn {
-              padding: 8px 12px;
-              font-size: 13px;
-            }
-
-            .ai-feature-banner {
-              padding: 12px;
-              margin-bottom: 16px;
-            }
-
-            .ai-icon {
-              font-size: 24px;
-            }
-
-            .ai-feature-banner strong {
+            
+            .timer-selector label {
               font-size: 14px;
             }
 
-            .ai-feature-banner p {
+            .timer-presets {
+              gap: 6px;
+            }
+
+            .preset-btn {
+              padding: 8px 10px;
               font-size: 12px;
             }
 
+            .ai-feature-banner {
+              padding: 10px;
+              margin-bottom: 16px;
+              gap: 10px;
+            }
+
+            .ai-icon {
+              font-size: 22px;
+            }
+
+            .ai-feature-banner strong {
+              font-size: 13px;
+            }
+
+            .ai-feature-banner p {
+              font-size: 11px;
+            }
+
             .btn-large {
-              padding: 14px 24px;
-              font-size: 15px;
+              padding: 12px 20px;
+              font-size: 14px;
+            }
+            
+            .quiz-actions {
+              gap: 8px;
+            }
+            
+            .quiz-actions .btn {
+              font-size: 13px;
             }
           }
         `}</style>

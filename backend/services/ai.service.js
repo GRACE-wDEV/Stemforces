@@ -1,13 +1,40 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-import { OpenAI } from 'openai';
+// Initialize Gemini AI
+let genAI = null;
+let model = null;
 
-// Initialize OpenAI only if API key is present
-const openai = process.env.OPENAI_API_KEY 
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  : null;
+const initializeAI = () => {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
+  
+  if (!apiKey) {
+    console.warn('⚠️ No Gemini API key found. AI features will be disabled.');
+    console.warn('Set GEMINI_API_KEY in your environment variables.');
+    return false;
+  }
+  
+  try {
+    genAI = new GoogleGenerativeAI(apiKey);
+    model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    console.log('✅ Gemini AI initialized successfully');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to initialize Gemini AI:', error.message);
+    return false;
+  }
+};
+
+// Initialize on module load
+initializeAI();
 
 // Check if AI is available
-const isAIAvailable = () => !!openai;
+const isAIAvailable = () => {
+  if (!model) {
+    // Try to reinitialize
+    initializeAI();
+  }
+  return !!model;
+};
 
 // System prompts for different AI features
 const SYSTEM_PROMPTS = {
@@ -53,13 +80,6 @@ Do not include any text before or after the JSON.`,
 - A personalized study plan
 Return as JSON: { "weakAreas": [], "recommendations": [], "nextSteps": [] }`,
 
-  battleQuestion: `Generate a competitive quiz question suitable for a real-time battle between students.
-The question should be:
-- Challenging but fair
-- Answerable in under 30 seconds
-- Clear and unambiguous
-Return ONLY valid JSON: { "question": "", "options": [], "correctAnswer": 0, "timeLimit": 20 }`,
-
   conceptBreakdown: `Break down a complex STEM concept into simple, digestible parts.
 - Use analogies students can relate to
 - Build from simple to complex
@@ -68,76 +88,92 @@ Return ONLY valid JSON: { "question": "", "options": [], "correctAnswer": 0, "ti
 - Make it engaging and memorable`
 };
 
-// AI Tutor - Chat with students
-export const chatWithTutor = async (message, context = {}) => {
+// Helper function to generate content with error handling
+const generateContent = async (prompt, maxRetries = 2) => {
   if (!isAIAvailable()) {
-    return {
-      success: false,
-      message: 'AI tutor is not configured. Please set OPENAI_API_KEY environment variable.'
-    };
+    throw new Error('AI is not configured. Please set GEMINI_API_KEY environment variable.');
+  }
+
+  let lastError;
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      return response.text();
+    } catch (error) {
+      lastError = error;
+      console.error(`AI attempt ${i + 1} failed:`, error.message);
+      
+      // Don't retry on certain errors
+      if (error.message?.includes('API_KEY') || error.message?.includes('PERMISSION')) {
+        throw error;
+      }
+      
+      // Wait before retrying
+      if (i < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+      }
+    }
   }
   
+  throw lastError;
+};
+
+// AI Tutor - Chat with students
+export const chatWithTutor = async (message, context = {}) => {
   try {
-    const systemPrompt = SYSTEM_PROMPTS.tutor;
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: message }
-    ];
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages,
-      max_tokens: 512,
-      temperature: 0.7
-    });
+    const prompt = `${SYSTEM_PROMPTS.tutor}
+
+${context.subject ? `Subject: ${context.subject}` : ''}
+${context.topic ? `Topic: ${context.topic}` : ''}
+
+Student's question: ${message}
+
+Provide a helpful response:`;
+
+    const response = await generateContent(prompt);
     return {
       success: true,
-      message: completion.choices[0].message.content
+      message: response
     };
   } catch (error) {
-    console.error('OpenAI Tutor Error:', error);
+    console.error('Gemini Tutor Error:', error);
     return {
       success: false,
-      message: 'AI is temporarily unavailable. Please try again later.',
+      message: 'AI tutor is temporarily unavailable. Please try again later.',
       error: error.message
     };
   }
 };
 
 // Explain why an answer was wrong
-export const explainWrongAnswer = async (question, userAnswer, correctAnswer, options) => {
-  if (!isAIAvailable()) {
-    return {
-      success: false,
-      explanation: 'AI explanations are not configured. Please set OPENAI_API_KEY environment variable.'
-    };
-  }
-  
+export const explainWrongAnswer = async (question, userAnswer, correctAnswer, options = []) => {
   try {
-    const systemPrompt = SYSTEM_PROMPTS.explainWrong;
-    const userPrompt = `Question: ${question}\nStudent's Answer: ${options[userAnswer]} (Option ${String.fromCharCode(65 + userAnswer)})\nCorrect Answer: ${options[correctAnswer]} (Option ${String.fromCharCode(65 + correctAnswer)})\n\nPlease explain:`;
+    const userAnswerText = typeof userAnswer === 'number' && options[userAnswer] 
+      ? options[userAnswer] 
+      : userAnswer;
+    const correctAnswerText = typeof correctAnswer === 'number' && options[correctAnswer]
+      ? options[correctAnswer]
+      : correctAnswer;
 
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-    ];
+    const prompt = `${SYSTEM_PROMPTS.explainWrong}
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages,
-      max_tokens: 300,
-      temperature: 0.6
-    });
+Question: ${question}
+Student's Answer: ${userAnswerText}
+Correct Answer: ${correctAnswerText}
 
-    const explanationText = completion.choices?.[0]?.message?.content || "Unable to generate explanation right now.";
+Explain why the student's answer is wrong and why the correct answer is right:`;
+
+    const response = await generateContent(prompt);
     return {
       success: true,
-      explanation: explanationText
+      explanation: response
     };
   } catch (error) {
-    console.error('AI Explain Error:', error);
+    console.error('Gemini Explain Error:', error);
     return {
       success: false,
-      explanation: 'Unable to generate explanation right now.',
+      explanation: 'Unable to generate explanation right now. Please try again.',
       error: error.message
     };
   }
@@ -146,19 +182,15 @@ export const explainWrongAnswer = async (question, userAnswer, correctAnswer, op
 // Generate a new question
 export const generateQuestion = async (subject, topic, difficulty = 'medium') => {
   try {
-    const model = getModel();
-    
     const prompt = `${SYSTEM_PROMPTS.generateQuestion}
 
 Generate a ${difficulty} difficulty question about:
 Subject: ${subject}
 Topic: ${topic}
 
-JSON:`;
+Return ONLY the JSON object:`;
     
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const text = await generateContent(prompt);
     
     // Extract JSON from response
     const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -172,7 +204,7 @@ JSON:`;
     
     throw new Error('Invalid response format');
   } catch (error) {
-    console.error('AI Generate Question Error:', error);
+    console.error('Gemini Generate Question Error:', error);
     return {
       success: false,
       error: error.message
@@ -204,28 +236,20 @@ export const generateQuestions = async (subject, topic, count = 5, difficulty = 
 // Get a hint for a question
 export const getHint = async (question, options, correctAnswer) => {
   try {
-    const systemPrompt = SYSTEM_PROMPTS.hint;
-    let userPrompt = `Question: ${question}\nOptions: ${options.map((o, i) => `${String.fromCharCode(65 + i)}) ${o}`).join(', ')}`;
-    if (typeof correctAnswer !== 'undefined' && correctAnswer !== null && correctAnswer !== '') {
-      userPrompt += `\n(Correct answer index: ${correctAnswer})`;
-    }
-    userPrompt += '\n\nGive a helpful hint:';
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-    ];
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages,
-      max_tokens: 128,
-      temperature: 0.7
-    });
+    let prompt = `${SYSTEM_PROMPTS.hint}
+
+Question: ${question}
+Options: ${Array.isArray(options) ? options.map((o, i) => `${String.fromCharCode(65 + i)}) ${o}`).join(', ') : options}
+
+Give a helpful hint without revealing the answer:`;
+
+    const response = await generateContent(prompt);
     return {
       success: true,
-      hint: completion.choices[0].message.content
+      hint: response
     };
   } catch (error) {
-    console.error('OpenAI Hint Error:', error);
+    console.error('Gemini Hint Error:', error);
     return {
       success: false,
       hint: 'Think about the key concepts involved in this question.',
@@ -237,8 +261,6 @@ export const getHint = async (question, options, correctAnswer) => {
 // Analyze performance and suggest study path
 export const getStudyRecommendations = async (performanceData) => {
   try {
-    const model = getModel();
-    
     const prompt = `${SYSTEM_PROMPTS.studyPath}
 
 Student Performance Data:
@@ -249,11 +271,9 @@ Student Performance Data:
 - Recent mistakes in: ${performanceData.recentMistakes?.join(', ') || 'Unknown'}
 - Time spent: ${performanceData.timeSpent || 0} minutes
 
-Provide personalized recommendations:`;
+Provide personalized recommendations as JSON:`;
     
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const text = await generateContent(prompt);
     
     // Try to parse as JSON, fallback to text
     try {
@@ -273,7 +293,7 @@ Provide personalized recommendations:`;
       recommendations: { text: text }
     };
   } catch (error) {
-    console.error('AI Study Path Error:', error);
+    console.error('Gemini Study Path Error:', error);
     return {
       success: false,
       error: error.message
@@ -284,19 +304,15 @@ Provide personalized recommendations:`;
 // Generate battle questions
 export const generateBattleQuestions = async (subject, count = 5) => {
   try {
-    const model = getModel();
-    
     const prompt = `Generate ${count} competitive quiz questions for a real-time battle about ${subject}.
 Questions should be answerable in 15-30 seconds.
-Return ONLY a JSON array:
+Return ONLY a JSON array (no other text):
 [
   { "question": "", "options": ["","","",""], "correctAnswer": 0, "timeLimit": 20 },
   ...
 ]`;
     
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const text = await generateContent(prompt);
     
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
@@ -309,43 +325,41 @@ Return ONLY a JSON array:
     
     throw new Error('Invalid response format');
   } catch (error) {
-    console.error('AI Battle Questions Error:', error);
+    console.error('Gemini Battle Questions Error:', error);
     
     // Check for quota exceeded error
-    const isQuotaError = error.message?.includes('429') || error.message?.includes('quota');
+    const isQuotaError = error.message?.includes('429') || error.message?.includes('quota') || error.message?.includes('RATE_LIMIT');
     
     return {
       success: false,
       error: error.message,
       isQuotaError,
       message: isQuotaError 
-        ? 'AI is temporarily unavailable. Using sample questions instead.'
+        ? 'AI is temporarily rate limited. Please try again in a minute.'
         : 'Failed to generate questions'
     };
   }
 };
 
 // Break down a complex concept
-export const breakdownConcept = async (concept, subject) => {
+export const breakdownConcept = async (concept, subject, level = 'intermediate') => {
   try {
-    const systemPrompt = SYSTEM_PROMPTS.conceptBreakdown;
-    const userPrompt = `Subject: ${subject}\nConcept to break down: ${concept}`;
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-    ];
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages,
-      max_tokens: 256,
-      temperature: 0.7
-    });
+    const prompt = `${SYSTEM_PROMPTS.conceptBreakdown}
+
+Subject: ${subject}
+Student Level: ${level}
+Concept to break down: ${concept}
+
+Provide a clear breakdown:`;
+
+    const response = await generateContent(prompt);
     return {
       success: true,
-      breakdown: completion.choices[0].message.content
+      breakdown: response,
+      data: { message: response }
     };
   } catch (error) {
-    console.error('OpenAI Concept Breakdown Error:', error);
+    console.error('Gemini Concept Breakdown Error:', error);
     return {
       success: false,
       error: error.message
@@ -356,11 +370,9 @@ export const breakdownConcept = async (concept, subject) => {
 // Generate a daily challenge
 export const generateDailyChallenge = async (subjects = ['Mathematics', 'Physics', 'Chemistry']) => {
   try {
-    const model = getModel();
-    
     const prompt = `Generate 5 challenging questions for a daily STEM challenge covering: ${subjects.join(', ')}.
 Each question should test different concepts and vary in difficulty.
-Return ONLY a JSON array:
+Return ONLY a JSON array (no other text):
 [
   { 
     "question": "", 
@@ -373,9 +385,7 @@ Return ONLY a JSON array:
   }
 ]`;
     
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const text = await generateContent(prompt);
     
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
@@ -392,7 +402,7 @@ Return ONLY a JSON array:
     
     throw new Error('Invalid response format');
   } catch (error) {
-    console.error('AI Daily Challenge Error:', error);
+    console.error('Gemini Daily Challenge Error:', error);
     return {
       success: false,
       error: error.message
@@ -409,5 +419,6 @@ export default {
   getStudyRecommendations,
   generateBattleQuestions,
   breakdownConcept,
-  generateDailyChallenge
+  generateDailyChallenge,
+  isAIAvailable
 };
