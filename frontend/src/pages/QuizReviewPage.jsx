@@ -138,6 +138,7 @@ const styles = `
     max-width: 800px;
     margin: 0 auto;
     padding: 24px;
+    padding-bottom: 80px;
   }
 
   .loading-card, .error-card {
