@@ -5,19 +5,19 @@ import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
 
-// Import all routes
-import authRoutes from "./routes/auth.routes.js";
-import questionRoutes from "./routes/question.routes.js";
-import quizRoutes from "./routes/quiz.routes.js";
-import categoryRoutes from "./routes/category.routes.js";
-import leaderboardRoutes from "./routes/leaderboard.routes.js";
-import adminRoutes from "./routes/admin.routes.js";
-import homeRoutes from "./routes/home.routes.js";
-import dailyChallengeRoutes from "./routes/dailyChallenge.routes.js";
-import battleRoutes from "./routes/battle.routes.js";
-import achievementRoutes from "./routes/achievement.routes.js";
-import aiRoutes from "./routes/ai.routes.js";
-import uploadRoutes from "./routes/upload.routes.js";
+// Import all routes from lib folder (outside api/ to avoid multiple function creation)
+import authRoutes from "../lib/routes/auth.routes.js";
+import questionRoutes from "../lib/routes/question.routes.js";
+import quizRoutes from "../lib/routes/quiz.routes.js";
+import categoryRoutes from "../lib/routes/category.routes.js";
+import leaderboardRoutes from "../lib/routes/leaderboard.routes.js";
+import adminRoutes from "../lib/routes/admin.routes.js";
+import homeRoutes from "../lib/routes/home.routes.js";
+import dailyChallengeRoutes from "../lib/routes/dailyChallenge.routes.js";
+import battleRoutes from "../lib/routes/battle.routes.js";
+import achievementRoutes from "../lib/routes/achievement.routes.js";
+import aiRoutes from "../lib/routes/ai.routes.js";
+import uploadRoutes from "../lib/routes/upload.routes.js";
 
 const app = express();
 

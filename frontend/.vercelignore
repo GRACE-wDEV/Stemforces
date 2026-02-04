@@ -1,0 +1,8 @@
+# Ignore these from being separate serverless functions
+# They are imported by api/index.js
+api/controllers
+api/routes
+api/services
+api/models
+api/middlewares
+api/utils
