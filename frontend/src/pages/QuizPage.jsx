@@ -374,6 +374,7 @@ const QuizPage = () => {
             align-items: center;
             justify-content: center;
             min-height: 70vh;
+            padding: 40px 20px 100px;
           }
 
           .quiz-start-card {
@@ -1036,6 +1037,7 @@ const QuizPage = () => {
       <style>{`
         .quiz-active {
           padding-top: 0;
+          padding-bottom: 100px;
         }
 
         .quiz-timer-bar {
