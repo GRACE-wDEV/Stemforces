@@ -71,23 +71,38 @@ export const updateUserProgress = async (userId, quizResult) => {
     userProgress.total_xp += xpEarned;
     userProgress.level = Math.floor(userProgress.total_xp / 200) + 1;
     
-    // Update streak
+    // Update streak - fix the logic for proper day calculation
     const today = new Date();
-    const lastActivity = userProgress.last_activity_date;
-    const daysDiff = Math.floor((today - lastActivity) / (1000 * 60 * 60 * 24));
+    today.setHours(0, 0, 0, 0); // Normalize to start of day
     
-    if (daysDiff === 1) {
-      // Consecutive day - continue streak
-      userProgress.current_streak += 1;
-      xpEarned += XP_REWARDS.STREAK_BONUS;
-    } else if (daysDiff === 0) {
-      // Same day - maintain streak
-    } else {
-      // Streak broken - reset
+    const lastActivity = userProgress.last_activity_date;
+    
+    if (!lastActivity) {
+      // First activity ever - start streak at 1
       userProgress.current_streak = 1;
+    } else {
+      const lastDate = new Date(lastActivity);
+      lastDate.setHours(0, 0, 0, 0); // Normalize to start of day
+      
+      const timeDiff = today.getTime() - lastDate.getTime();
+      const daysDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+      
+      if (daysDiff === 0) {
+        // Same day - maintain streak (but ensure it's at least 1)
+        if (userProgress.current_streak === 0) {
+          userProgress.current_streak = 1;
+        }
+      } else if (daysDiff === 1) {
+        // Consecutive day - continue streak
+        userProgress.current_streak += 1;
+        xpEarned += XP_REWARDS.STREAK_BONUS;
+      } else {
+        // Streak broken (more than 1 day gap) - reset to 1
+        userProgress.current_streak = 1;
+      }
     }
     
-    userProgress.last_activity_date = today;
+    userProgress.last_activity_date = new Date(); // Store actual timestamp
 
     // Update subject progress
     let subjectProgress = userProgress.subject_progress.find(sp => sp.subject === subject);
