@@ -102,7 +102,7 @@ export const getDashboardStats = async (req, res) => {
         .sort({ attempts: -1 })
         .limit(5)
         .select("title subject attempts avg_score questions"),
-      // Distinct subjects actually in database
+      // Distinct subjects from questions (for merging with standard list)
       Question.distinct("subject", { deleted_at: null }),
       // Category counts per subject
       Category.aggregate([
@@ -151,20 +151,29 @@ export const getDashboardStats = async (req, res) => {
 
     // ── Build subject metadata with icons ──
     const SUBJECT_META = {
-      Mathematics: { icon: "📐", color: "#3b82f6" },
-      Math: { icon: "📐", color: "#3b82f6" },
-      Physics: { icon: "⚡", color: "#8b5cf6" },
-      Chemistry: { icon: "🧪", color: "#10b981" },
-      Biology: { icon: "🧬", color: "#f59e0b" },
-      English: { icon: "📚", color: "#6366f1" },
-      French: { icon: "🇫🇷", color: "#ec4899" },
-      Arabic: { icon: "🌙", color: "#14b8a6" },
-      Deutsch: { icon: "🇩🇪", color: "#ef4444" },
-      Geology: { icon: "🌍", color: "#84cc16" },
+      Math:           { icon: "📐", color: "#3b82f6" },
+      Mathematics:    { icon: "📐", color: "#3b82f6" },
+      Physics:        { icon: "⚡", color: "#8b5cf6" },
+      Chemistry:      { icon: "🧪", color: "#10b981" },
+      Biology:        { icon: "🧬", color: "#f59e0b" },
+      English:        { icon: "📚", color: "#6366f1" },
+      French:         { icon: "🇫🇷", color: "#ec4899" },
+      Arabic:         { icon: "🌙", color: "#14b8a6" },
+      Deutsch:        { icon: "🇩🇪", color: "#ef4444" },
       "Earth Science": { icon: "🌍", color: "#84cc16" },
+      Geology:        { icon: "🌍", color: "#84cc16" },
     };
 
-    const subjects = subjectsFromDB.map((s) => ({
+    // Standard subjects (always shown, matching home page)
+    const standardSubjects = [
+      'Math', 'Arabic', 'Physics', 'Chemistry', 'English',
+      'Deutsch', 'Earth Science', 'French', 'Biology'
+    ];
+
+    // Merge: standard subjects + any extra DB-only subjects
+    const allSubjectNames = [...new Set([...standardSubjects, ...subjectsFromDB])];
+
+    const subjects = allSubjectNames.map((s) => ({
       id: s,
       name: s,
       icon: SUBJECT_META[s]?.icon || "📖",
