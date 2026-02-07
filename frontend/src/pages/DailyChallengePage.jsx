@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import LaTeXRenderer from "../components/common/LaTeXRenderer";
+import AIExplanation from "../components/ai/AIExplanation";
 import { useAuthStore } from "../stores/authStore";
 import api from "../api/axios";
 
@@ -13,7 +14,8 @@ export default function DailyChallengePage() {
   const [selectedAnswers, setSelectedAnswers] = useState({});
   const [showResults, setShowResults] = useState(false);
   const [results, setResults] = useState(null);
-  const [startTime] = useState(Date.now()); // Track when user started
+  const [startTime] = useState(Date.now());
+  const [showAIExplanation, setShowAIExplanation] = useState(null);
 
   // Fetch today's challenge from backend
   const { data: challengeData, isLoading, error, refetch } = useQuery({
@@ -196,79 +198,164 @@ export default function DailyChallengePage() {
 
     return (
       <div className="page-container">
-        <div className="results-container">
-          <div className={`results-header ${passed ? 'success' : 'failed'}`}>
-            <div className="result-icon">{passed ? '🏆' : '💪'}</div>
+        <div className="dc-results">
+          <div className={`dc-results-header ${passed ? 'success' : 'failed'}`}>
+            <div className="dc-result-icon">{passed ? '🏆' : '💪'}</div>
             <h1>{passed ? 'Challenge Complete!' : 'Nice Try!'}</h1>
             <p>{passed ? 'You maintained your streak!' : 'Need 80% to keep streak.'}</p>
           </div>
 
-          <div className="score-display">
-            <div className="score-circle"><span className="score-value">{percentage}%</span></div>
-            <div className="score-details">
+          <div className="dc-score-display">
+            <div className="dc-score-circle"><span className="dc-score-value">{percentage}%</span></div>
+            <div className="dc-score-details">
               <span>{correct}/{total} correct</span>
-              {passed && results?.xpEarned && <span className="xp-earned">+{results.xpEarned} XP</span>}
+              {passed && results?.xpEarned && <span className="dc-xp-earned">+{results.xpEarned} XP</span>}
             </div>
           </div>
 
           {passed && (
-            <div className="streak-celebration">
-              <span>🔥</span> <span className="streak-num">{streak + 1}</span> Day Streak!
+            <div className="dc-streak-celebration">
+              <span>🔥</span> <span className="dc-streak-num">{streak + 1}</span> Day Streak!
             </div>
           )}
 
           <div className="card">
-            <h3>Question Breakdown</h3>
+            <h3 style={{ marginBottom: 16 }}>Question Breakdown</h3>
             {challenge.questions.map((q, idx) => {
               const userAnswer = selectedAnswers[idx];
               const correctIdx = q.correct ?? q.options?.findIndex(o => o.isCorrect);
               const isCorrect = userAnswer === correctIdx;
               const options = q.options?.map(o => typeof o === 'string' ? o : o.text) || [];
-              
+
               return (
-                <div key={q.id || q._id || idx} className={`q-item ${isCorrect ? 'correct' : 'incorrect'}`}>
-                  <div className="q-header">
-                    <span className="q-subject">{q.subject}</span>
-                    <span className={`q-result ${isCorrect ? 'correct' : 'incorrect'}`}>{isCorrect ? '✓' : '✗'}</span>
-                  </div>
-                  <div className="q-text"><LaTeXRenderer content={q.question || q.title} /></div>
-                  {!isCorrect && (
-                    <div className="q-explanation">
-                      <strong>Correct:</strong> {options[correctIdx]}<br/>
-                      {q.explanation && <LaTeXRenderer content={q.explanation} />}
+                <div key={q.id || q._id || idx} className={`dc-q-item ${isCorrect ? 'correct' : 'incorrect'}`}>
+                  <div className="dc-q-header">
+                    <div className="dc-q-left">
+                      <span className="dc-q-num">Q{idx + 1}</span>
+                      <span className="dc-q-subject">{q.subject}</span>
                     </div>
-                  )}
+                    <span className={`dc-q-badge ${isCorrect ? 'correct' : 'incorrect'}`}>
+                      {isCorrect ? '✓ Correct' : '✗ Incorrect'}
+                    </span>
+                  </div>
+
+                  <div className="dc-q-text"><LaTeXRenderer content={q.question || q.title} /></div>
+
+                  <div className="dc-options-review">
+                    {options.map((opt, oIdx) => {
+                      const isThisCorrect = oIdx === correctIdx;
+                      const isUserPick = oIdx === userAnswer;
+                      let cls = 'dc-opt-review';
+                      if (isThisCorrect) cls += ' correct-opt';
+                      else if (isUserPick && !isCorrect) cls += ' wrong-opt';
+
+                      return (
+                        <div key={oIdx} className={cls}>
+                          <span className="dc-opt-letter">{String.fromCharCode(65 + oIdx)}</span>
+                          <span className="dc-opt-text"><LaTeXRenderer content={opt} /></span>
+                          {isThisCorrect && <span className="dc-opt-tag correct-tag">✓ Correct</span>}
+                          {isUserPick && !isCorrect && <span className="dc-opt-tag your-tag">Your answer</span>}
+                          {isUserPick && isCorrect && <span className="dc-opt-tag your-correct-tag">✓ Your answer</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="dc-q-actions">
+                    <button
+                      className="dc-ai-btn"
+                      onClick={() => setShowAIExplanation({
+                        question: q.question || q.title,
+                        userAnswer: userAnswer !== undefined ? options[userAnswer] : 'No answer',
+                        correctAnswer: options[correctIdx] || '',
+                        subject: q.subject
+                      })}
+                    >
+                      🤖 AI Explanation
+                    </button>
+                  </div>
                 </div>
               );
             })}
           </div>
 
-          <button className="btn btn-primary" onClick={() => navigate("/")}>Back to Home</button>
+          <div className="dc-bottom-actions">
+            <button className="btn btn-primary" onClick={() => navigate("/")}>Back to Home</button>
+          </div>
         </div>
 
+        {showAIExplanation && (
+          <AIExplanation
+            question={showAIExplanation.question}
+            userAnswer={showAIExplanation.userAnswer}
+            correctAnswer={showAIExplanation.correctAnswer}
+            subject={showAIExplanation.subject}
+            onClose={() => setShowAIExplanation(null)}
+          />
+        )}
+
         <style>{`
-          .results-container { max-width: 700px; margin: 0 auto; }
-          .results-header { text-align: center; padding: 40px; border-radius: 16px; margin-bottom: 24px; }
-          .results-header.success { background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.2)); }
-          .results-header.failed { background: linear-gradient(135deg, rgba(249, 115, 22, 0.2), rgba(234, 88, 12, 0.2)); }
-          .result-icon { font-size: 64px; margin-bottom: 16px; }
-          .score-display { display: flex; align-items: center; justify-content: center; gap: 24px; margin-bottom: 24px; }
-          .score-circle { width: 100px; height: 100px; border-radius: 50%; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center; border: 4px solid var(--primary); }
-          .score-value { font-size: 28px; font-weight: 700; }
-          .score-details { display: flex; flex-direction: column; gap: 4px; }
-          .xp-earned { color: #22c55e; font-weight: 600; }
-          .streak-celebration { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px; background: linear-gradient(135deg, #f97316, #ea580c); border-radius: 12px; color: white; font-weight: 600; font-size: 20px; margin-bottom: 24px; }
-          .streak-num { font-size: 28px; }
-          .q-item { padding: 16px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid; }
-          .q-item.correct { background: rgba(34, 197, 94, 0.05); border-left-color: #22c55e; }
-          .q-item.incorrect { background: rgba(239, 68, 68, 0.05); border-left-color: #ef4444; }
-          .q-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
-          .q-subject { font-size: 12px; color: var(--text-secondary); }
-          .q-result { font-weight: 600; }
-          .q-result.correct { color: #22c55e; }
-          .q-result.incorrect { color: #ef4444; }
-          .q-text { font-size: 14px; margin-bottom: 8px; }
-          .q-explanation { font-size: 13px; color: var(--text-secondary); padding: 12px; background: var(--bg-secondary); border-radius: 8px; }
+          .dc-results { max-width: 750px; margin: 0 auto; padding-bottom: 100px; }
+          .dc-results-header { text-align: center; padding: 40px; border-radius: 16px; margin-bottom: 24px; }
+          .dc-results-header.success { background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.2)); }
+          .dc-results-header.failed { background: linear-gradient(135deg, rgba(249, 115, 22, 0.2), rgba(234, 88, 12, 0.2)); }
+          .dc-result-icon { font-size: 64px; margin-bottom: 16px; }
+          .dc-score-display { display: flex; align-items: center; justify-content: center; gap: 24px; margin-bottom: 24px; }
+          .dc-score-circle { width: 100px; height: 100px; border-radius: 50%; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center; border: 4px solid var(--primary); }
+          .dc-score-value { font-size: 28px; font-weight: 700; }
+          .dc-score-details { display: flex; flex-direction: column; gap: 4px; }
+          .dc-xp-earned { color: #22c55e; font-weight: 600; }
+          .dc-streak-celebration { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px; background: linear-gradient(135deg, #f97316, #ea580c); border-radius: 12px; color: white; font-weight: 600; font-size: 20px; margin-bottom: 24px; }
+          .dc-streak-num { font-size: 28px; }
+
+          .dc-q-item { padding: 20px; border-radius: 12px; margin-bottom: 16px; border-left: 4px solid; }
+          .dc-q-item.correct { background: rgba(34, 197, 94, 0.04); border-left-color: #22c55e; }
+          .dc-q-item.incorrect { background: rgba(239, 68, 68, 0.04); border-left-color: #ef4444; }
+
+          .dc-q-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; flex-wrap: wrap; }
+          .dc-q-left { display: flex; align-items: center; gap: 10px; }
+          .dc-q-num { font-weight: 700; font-size: 0.9rem; color: var(--text-secondary); }
+          .dc-q-subject { font-size: 0.75rem; padding: 3px 10px; background: var(--bg-tertiary); border-radius: 20px; color: var(--text-secondary); }
+          .dc-q-badge { font-size: 0.8rem; font-weight: 600; padding: 4px 12px; border-radius: 6px; }
+          .dc-q-badge.correct { background: rgba(34, 197, 94, 0.15); color: #16a34a; }
+          .dc-q-badge.incorrect { background: rgba(239, 68, 68, 0.15); color: #dc2626; }
+
+          .dc-q-text { font-size: 1rem; line-height: 1.6; margin-bottom: 16px; }
+
+          .dc-options-review { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+          .dc-opt-review {
+            display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+            border-radius: 10px; border: 1.5px solid var(--border-color); background: var(--bg-secondary);
+            transition: none;
+          }
+          .dc-opt-review.correct-opt { border-color: #22c55e; background: rgba(34, 197, 94, 0.08); }
+          .dc-opt-review.wrong-opt { border-color: #ef4444; background: rgba(239, 68, 68, 0.08); }
+          .dc-opt-letter {
+            width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+            background: var(--bg-tertiary); border-radius: 6px; font-weight: 600; font-size: 0.85rem; flex-shrink: 0;
+          }
+          .correct-opt .dc-opt-letter { background: #22c55e; color: white; }
+          .wrong-opt .dc-opt-letter { background: #ef4444; color: white; }
+          .dc-opt-text { flex: 1; font-size: 0.9rem; }
+          .dc-opt-tag { font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; white-space: nowrap; flex-shrink: 0; }
+          .correct-tag { background: rgba(34, 197, 94, 0.2); color: #16a34a; }
+          .your-tag { background: rgba(239, 68, 68, 0.2); color: #dc2626; }
+          .your-correct-tag { background: rgba(34, 197, 94, 0.2); color: #16a34a; }
+
+          .dc-q-actions { display: flex; gap: 8px; }
+          .dc-ai-btn {
+            padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border-color);
+            background: var(--bg-secondary); cursor: pointer; font-size: 0.85rem; font-weight: 500;
+            color: var(--text-primary); transition: all 0.2s;
+          }
+          .dc-ai-btn:hover { border-color: var(--primary); background: rgba(99, 102, 241, 0.08); }
+
+          .dc-bottom-actions { margin-top: 24px; display: flex; justify-content: center; }
+
+          @media (max-width: 600px) {
+            .dc-results { padding-bottom: 120px; }
+            .dc-q-header { flex-direction: column; align-items: flex-start; }
+          }
         `}</style>
       </div>
     );
