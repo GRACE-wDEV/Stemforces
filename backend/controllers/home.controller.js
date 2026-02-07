@@ -48,8 +48,8 @@ const getUserStats = async (userId) => {
       };
     }
 
-    // Calculate level based on XP (200 XP per level)
-    const level = Math.floor(userProgress.total_xp / 200) + 1;
+    // Calculate level based on XP (100 XP per level – matches frontend levelUtils)
+    const level = Math.floor(userProgress.total_xp / 100) + 1;
     
     // Calculate average score
     const averageScore = userProgress.total_questions_attempted > 0 
