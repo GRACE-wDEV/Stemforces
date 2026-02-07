@@ -1,9 +1,11 @@
 import express from "express";
+import mongoose from "mongoose";
 import { registerUser, loginUser, getCurrentUser, updateCurrentUser } from "../controllers/auth.controller.js";
 import { admin, protect } from "../middlewares/auth.middleware.js";
 import User from "../models/user.model.js";
 import UserProgress from "../models/userProgress.model.js";
 import Achievement from "../models/achievement.model.js";
+import Streak from "../models/streak.model.js";
 
 const router = express.Router();
 
@@ -321,6 +323,43 @@ router.patch("/users/:id/reset-password", protect, admin, async (req, res) => {
     await user.save();
 
     res.json({ message: `Password reset for "${user.name}"` });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Reset all user data (admin) - wipes progress, achievements, streaks, daily challenge attempts
+// @route   POST /api/auth/users/:id/reset-data
+router.post("/users/:id/reset-data", protect, admin, async (req, res) => {
+  try {
+    // Prevent admin from resetting their own data
+    if (req.params.id === req.user._id.toString()) {
+      return res.status(400).json({ message: "Cannot reset your own data." });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Delete UserProgress
+    await UserProgress.deleteMany({ user_id: user._id });
+
+    // Delete Achievements
+    await Achievement.deleteMany({ user_id: user._id });
+
+    // Delete Streak data
+    await Streak.deleteMany({ user_id: user._id });
+
+    // Delete DailyChallengeAttempt data
+    const DailyChallengeAttempt = mongoose.models.DailyChallengeAttempt;
+    if (DailyChallengeAttempt) {
+      await DailyChallengeAttempt.deleteMany({ user: user._id });
+    }
+
+    // Reset user score
+    user.score = 0;
+    await user.save();
+
+    res.json({ message: `All data reset for "${user.name}". Account is now fresh.` });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

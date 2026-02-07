@@ -87,4 +87,6 @@ export const adminAPI = {
   deleteUser: (id) => api.delete(`/auth/users/${id}`),
 
   resetUserPassword: (id, newPassword) => api.patch(`/auth/users/${id}/reset-password`, { newPassword }),
+
+  resetUserData: (id) => api.post(`/auth/users/${id}/reset-data`),
 };

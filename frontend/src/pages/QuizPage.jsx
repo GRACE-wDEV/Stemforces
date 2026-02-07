@@ -79,6 +79,8 @@ const QuizPage = () => {
     questions: []
   }, [quizApiData, subjectId, topicId, topicName, subjectName, difficulty]);
 
+  const isArabic = (quizData.subject || '').toLowerCase() === 'arabic';
+
   /* ── Submit Logic ── */
   const handleFinishQuiz = useCallback(async () => {
     setSubmittingQuiz(true);
@@ -271,7 +273,7 @@ const QuizPage = () => {
      ═══════════════════════════════════════════ */
   if (!timerStarted && !showResults) {
     return (
-      <div className="qp-page">
+      <div className={`qp-page ${isArabic ? 'qp-rtl' : ''}`}>
         <div className="qp-start">
           {/* Hero */}
           <div className="qp-start-hero">
@@ -362,7 +364,7 @@ const QuizPage = () => {
     const message = results.percentage >= 90 ? 'Outstanding!' : results.percentage >= 70 ? 'Great Job!' : results.percentage >= 50 ? 'Good Effort!' : 'Keep Practicing!';
 
     return (
-      <div className="qp-page">
+      <div className={`qp-page ${isArabic ? 'qp-rtl' : ''}`}>
         <div className="qp-results">
           {/* Hero */}
           <div className={`qp-res-hero ${results.percentage >= 70 ? 'pass' : 'fail'}`}>
@@ -472,7 +474,7 @@ const QuizPage = () => {
   const answeredCount = Object.keys(selectedAnswers).length;
 
   return (
-    <div className="qp-page active">
+    <div className={`qp-page active ${isArabic ? 'qp-rtl' : ''}`}>
       {/* Top Bar */}
       <div className="qp-topbar">
         <div className="qp-topbar-inner">
@@ -831,6 +833,25 @@ const qpStyles = `
   }
 
   .qp-res-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+  /* RTL Support (Arabic) */
+  .qp-rtl { direction: rtl; text-align: right; }
+  .qp-rtl .qp-q-text, .qp-rtl .qp-choice-text, .qp-rtl .qp-res-q-text,
+  .qp-rtl .qp-res-ans span:last-child, .qp-rtl .qp-res-q-explanation { direction: rtl; text-align: right; }
+  .qp-rtl .qp-choice { flex-direction: row-reverse; text-align: right; }
+  .qp-rtl .qp-choice:hover { transform: translateX(-4px); }
+  .qp-rtl .qp-nav { flex-direction: row-reverse; }
+  .qp-rtl .qp-topbar-inner { flex-direction: row-reverse; }
+  .qp-rtl .qp-topbar-left { text-align: right; }
+  .qp-rtl .qp-q-header { flex-direction: row-reverse; }
+  .qp-rtl .qp-res-q { border-left: none; border-right: 4px solid; }
+  .qp-rtl .qp-res-q.correct { border-right-color: #22c55e; }
+  .qp-rtl .qp-res-q.incorrect { border-right-color: #ef4444; }
+  .qp-rtl .qp-res-q-head { flex-direction: row-reverse; }
+  .qp-rtl .qp-res-ans-label { text-align: right; }
+  .qp-rtl .qp-start-actions { direction: ltr; }
+  .qp-rtl .qp-res-actions { direction: ltr; }
+  .qp-rtl .qp-btn { direction: ltr; }
 
   /* Responsive */
   @media (max-width: 600px) {

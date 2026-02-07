@@ -73,8 +73,8 @@ export const createAdminQuiz = async (req, res) => {
       created_by: req.user._id
     };
 
-    // If rules are provided, generate questions based on rules
-    if (quizData.rules && Object.keys(quizData.rules).length > 0) {
+    // If rules are provided AND no explicit questions given, generate questions from rules
+    if (quizData.rules && Object.keys(quizData.rules).length > 0 && (!quizData.questions || quizData.questions.length === 0)) {
       const questions = await generateQuestionsFromRules(quizData.rules);
       quizData.questions = questions.map(q => q._id);
     }

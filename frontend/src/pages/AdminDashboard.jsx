@@ -45,6 +45,7 @@ import {
   Key,
   Ban,
   Power,
+  RotateCcw,
 } from "lucide-react";
 import { adminAPI } from "../api/admin";
 
@@ -621,6 +622,7 @@ function UsersPanel() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [resetPwUser, setResetPwUser] = useState(null);
   const [newPassword, setNewPassword] = useState("");
+  const [resetDataConfirm, setResetDataConfirm] = useState(null);
   const [viewingUser, setViewingUser] = useState(null);
   const queryClient = useQueryClient();
 
@@ -685,6 +687,15 @@ function UsersPanel() {
     onSuccess: () => {
       setResetPwUser(null);
       setNewPassword("");
+    },
+  });
+
+  const resetDataMutation = useMutation({
+    mutationFn: (id) => adminAPI.resetUserData(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries(["admin-users"]);
+      queryClient.invalidateQueries(["admin-user-detail"]);
+      setResetDataConfirm(null);
     },
   });
 
@@ -843,6 +854,13 @@ function UsersPanel() {
             >
               <Trash2 size={14} /> Delete User
             </button>
+            <button
+              className="btn-secondary" style={{ borderColor: '#f59e0b', color: '#f59e0b' }}
+              onClick={() => setResetDataConfirm(u)}
+              disabled={resetDataMutation.isPending}
+            >
+              <RotateCcw size={14} /> Reset All Data
+            </button>
           </div>
         </div>
 
@@ -922,6 +940,32 @@ function UsersPanel() {
                 <button className="btn-secondary" onClick={() => { setResetPwUser(null); setNewPassword(""); }}>Cancel</button>
                 <button className="btn-primary" onClick={() => resetPwMutation.mutate({ id: resetPwUser._id, newPassword })} disabled={resetPwMutation.isPending || newPassword.length < 6}>
                   {resetPwMutation.isPending ? "Resetting..." : <><Key size={14} /> Reset Password</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {resetDataConfirm && (
+          <div className="modal-overlay" onClick={() => setResetDataConfirm(null)}>
+            <div className="modal-card modal-danger" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header danger">
+                <h3><RotateCcw size={18} /> Reset All Data</h3>
+                <button className="modal-close" onClick={() => setResetDataConfirm(null)}><X size={18} /></button>
+              </div>
+              <div className="modal-body">
+                <p>Are you sure you want to reset all data for <strong>{resetDataConfirm?.name}</strong>?</p>
+                <p className="modal-warning">This will delete all progress, quiz attempts, achievements, streaks, and daily challenge history. The account itself will remain but as if it was just created. This cannot be undone.</p>
+                {resetDataMutation.isError && (
+                  <div className="modal-error">{resetDataMutation.error?.response?.data?.message || "Failed to reset data"}</div>
+                )}
+                {resetDataMutation.isSuccess && (
+                  <div className="modal-success">All user data has been reset!</div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button className="btn-secondary" onClick={() => setResetDataConfirm(null)}>Cancel</button>
+                <button className="btn-danger" onClick={() => resetDataMutation.mutate(resetDataConfirm._id)} disabled={resetDataMutation.isPending}>
+                  {resetDataMutation.isPending ? "Resetting..." : <><RotateCcw size={14} /> Reset All Data</>}
                 </button>
               </div>
             </div>
@@ -1867,7 +1911,6 @@ function TestBuilder({ subject, categories, refetch, subjects }) {
           questions: createdQuestions,
           total_time: testInfo.total_time,
           published: true,
-          rules: { count: createdQuestions.length, difficulty: testInfo.difficulty, randomize: false },
         });
       }
       setSubmitResult({ success: true, count: createdQuestions.length });
@@ -2020,16 +2063,16 @@ function TestBuilder({ subject, categories, refetch, subjects }) {
 
             <div className="form-group">
               <label>Question Text <span className="label-hint">Use $...$ for LaTeX math</span></label>
-              <textarea placeholder="Enter the question..." value={currentQuestion.question_text} onChange={(e) => handleQuestionChange("question_text", e.target.value)} rows={4} />
+              <textarea placeholder="Enter the question..." value={currentQuestion.question_text} onChange={(e) => handleQuestionChange("question_text", e.target.value)} rows={4} dir={subject === 'Arabic' ? 'rtl' : 'ltr'} style={subject === 'Arabic' ? { textAlign: 'right' } : {}} />
             </div>
 
             <div className="form-group">
               <label>Answer Choices (click ✓ to mark correct)</label>
               <div className="choices-list">
                 {currentQuestion.choices.map((choice, idx) => (
-                  <div key={choice.id} className={`choice-row ${choice.is_correct ? "correct" : ""}`}>
+                  <div key={choice.id} className={`choice-row ${choice.is_correct ? "correct" : ""}`} style={subject === 'Arabic' ? { direction: 'rtl' } : {}}>
                     <span className="choice-letter">{choice.id}</span>
-                    <input type="text" placeholder={`Option ${choice.id}`} value={choice.text} onChange={(e) => handleChoiceChange(idx, "text", e.target.value)} />
+                    <input type="text" placeholder={`Option ${choice.id}`} value={choice.text} onChange={(e) => handleChoiceChange(idx, "text", e.target.value)} dir={subject === 'Arabic' ? 'rtl' : 'ltr'} style={subject === 'Arabic' ? { textAlign: 'right' } : {}} />
                     <button type="button" className={`correct-btn ${choice.is_correct ? "active" : ""}`} onClick={() => handleChoiceChange(idx, "is_correct", true)}><Check size={16} /></button>
                   </div>
                 ))}
@@ -2038,7 +2081,7 @@ function TestBuilder({ subject, categories, refetch, subjects }) {
 
             <div className="form-group">
               <label>Explanation (optional)</label>
-              <textarea placeholder="Explain the solution..." value={currentQuestion.explanation} onChange={(e) => handleQuestionChange("explanation", e.target.value)} rows={2} />
+              <textarea placeholder="Explain the solution..." value={currentQuestion.explanation} onChange={(e) => handleQuestionChange("explanation", e.target.value)} rows={2} dir={subject === 'Arabic' ? 'rtl' : 'ltr'} style={subject === 'Arabic' ? { textAlign: 'right' } : {}} />
             </div>
           </div>
         </div>
