@@ -1895,8 +1895,9 @@ function TestBuilder({ subject, categories, refetch, subjects }) {
           explanation: q.explanation,
           subject,
           category: testInfo.category || undefined,
-          source: testInfo.source,
+          source: testInfo.source || "Custom",
           difficulty: testInfo.difficulty,
+          time_limit_seconds: 60,
           published: true,
         };
         const res = await adminAPI.createQuestion(questionData);
