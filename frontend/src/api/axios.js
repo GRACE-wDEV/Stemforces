@@ -33,6 +33,7 @@ const getApiBaseUrl = () => {
 const BASE = getApiBaseUrl();
 const api = axios.create({
   baseURL: BASE,
+  timeout: 15000, // 15 s — prevent requests from hanging forever
 });
 
 api.interceptors.request.use(

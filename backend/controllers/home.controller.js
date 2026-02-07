@@ -168,71 +168,100 @@ export const getHomePageData = async (req, res) => {
       'Biology'
     ];
 
-    // Get all published questions
-    const questions = await Question.find({ deleted_at: null, published: true })
-      .select('subject source title difficulty points')
-      .lean();
+    // ── Parallel data fetch (single round-trip batch) ──
+    const [questions, quizzes, userProgress, rankCount, recentAchievements] = await Promise.all([
+      // All published questions (lean for speed)
+      Question.find({ deleted_at: null, published: true })
+        .select('subject source title difficulty points')
+        .lean(),
+      // All published quizzes
+      Quiz.find({ published: true })
+        .populate('questions', 'subject difficulty points')
+        .select('title description total_time questions subject source created_by')
+        .lean(),
+      // User progress (single query replaces 9+ identical lookups)
+      userId ? UserProgress.findOne({ user_id: userId }).lean() : null,
+      // Rank count (only if authenticated)
+      userId ? null : null, // placeholder, computed after userProgress resolves
+      // Recent achievements
+      userId
+        ? Achievement.find({ user_id: userId }).sort({ earned_at: -1 }).limit(5).lean()
+        : [],
+    ]);
 
-    // Get all published quizzes
-    const quizzes = await Quiz.find({ published: true })
-      .populate('questions', 'subject difficulty points')
-      .select('title description total_time questions subject source created_by')
-      .lean();
+    // Compute rank in one query now that we have XP
+    let rank = 0;
+    if (userId && userProgress) {
+      rank = (await UserProgress.countDocuments({ total_xp: { $gt: userProgress.total_xp } })) + 1;
+    }
 
-    // Build subjects data - always include all standard subjects
-    const subjectsData = [];
-    
-    for (const subject of standardSubjects) {
+    // Build userStats from the single userProgress document
+    const userStats = (() => {
+      if (!userId) return { totalQuestions: 0, correctAnswers: 0, streak: 0, xp: 0, level: 1, rank: 0, timeSpent: 0, averageScore: 0, isGuest: true };
+      if (!userProgress) return { totalQuestions: 0, correctAnswers: 0, streak: 0, xp: 0, level: 1, rank: 0, timeSpent: 0, averageScore: 0, isGuest: false };
+      const level = Math.floor(userProgress.total_xp / 100) + 1;
+      const averageScore = userProgress.total_questions_attempted > 0
+        ? Math.round((userProgress.total_questions_correct / userProgress.total_questions_attempted) * 100) : 0;
+      return {
+        totalQuestions: userProgress.total_questions_attempted,
+        correctAnswers: userProgress.total_questions_correct,
+        streak: userProgress.current_streak,
+        xp: userProgress.total_xp,
+        level,
+        rank,
+        timeSpent: userProgress.total_time_spent,
+        averageScore,
+        isGuest: false,
+      };
+    })();
+
+    // Build subject_progress lookup map (O(1) per subject instead of O(n) DB call)
+    const progressMap = {};
+    if (userProgress?.subject_progress) {
+      for (const sp of userProgress.subject_progress) {
+        progressMap[sp.subject.toLowerCase()] = sp.questions_correct || 0;
+      }
+    }
+
+    // Build subjects data
+    const subjectsData = standardSubjects.map(subject => {
       const subjectQuestions = questions.filter(q => q.subject === subject);
       const subjectQuizzes = quizzes.filter(q => {
         if (q.subject) return q.subject === subject;
-        if (q.questions && q.questions.length > 0) {
-          return q.questions.some(question => question.subject === subject);
-        }
+        if (q.questions?.length > 0) return q.questions.some(question => question.subject === subject);
         return false;
       });
 
-      // Get question-based topics (legacy approach) - only for sources without quizzes
       const sources = [...new Set(subjectQuestions.map(q => q.source))].filter(Boolean);
-      
-      // Get quiz sources to avoid duplicates
       const quizSources = new Set(subjectQuizzes.map(q => q.source).filter(Boolean));
       const quizTitles = new Set(subjectQuizzes.map(q => q.title));
-      
+
       const questionTopics = sources
-        // Filter out sources that already have quizzes (avoid duplication)
         .filter(source => !quizSources.has(source) && !quizTitles.has(source))
         .map(source => {
           const topicQuestions = subjectQuestions.filter(q => q.source === source);
-        
-          // Calculate difficulty distribution
           const difficulties = topicQuestions.map(q => q.difficulty);
-          const difficultyMode = difficulties.sort((a,b) =>
+          const difficultyMode = difficulties.sort((a, b) =>
             difficulties.filter(v => v === a).length - difficulties.filter(v => v === b).length
           ).pop() || 'Intermediate';
-        
-          // Estimate time based on question count (2 minutes per question, minimum 1 minute)
-          const estimatedTime = Math.max(1, Math.min(60, topicQuestions.length * 2));
-        
           return {
             id: source.toLowerCase().replace(/\s+/g, '-'),
             name: source,
             type: 'question-topic',
             questions: topicQuestions.length,
             difficulty: difficultyMode,
-            estimatedTime: estimatedTime
+            estimatedTime: Math.max(1, Math.min(60, topicQuestions.length * 2)),
           };
         });
 
-      // Get quiz-based topics
       const quizTopics = subjectQuizzes.map(quiz => {
         const questionCount = quiz.questions ? quiz.questions.length : 0;
         const difficulties = quiz.questions ? quiz.questions.map(q => q.difficulty).filter(Boolean) : [];
-        const difficultyMode = difficulties.length > 0 ? 
-          difficulties.sort((a,b) =>
-            difficulties.filter(v => v === a).length - difficulties.filter(v => v === b).length
-          ).pop() : 'Intermediate';
-
+        const difficultyMode = difficulties.length > 0
+          ? difficulties.sort((a, b) =>
+              difficulties.filter(v => v === a).length - difficulties.filter(v => v === b).length
+            ).pop()
+          : 'Intermediate';
         return {
           id: quiz._id.toString(),
           name: quiz.title,
@@ -241,120 +270,85 @@ export const getHomePageData = async (req, res) => {
           difficulty: difficultyMode,
           estimatedTime: quiz.total_time || Math.max(1, questionCount * 2),
           description: quiz.description,
-          source: quiz.source
+          source: quiz.source,
         };
       });
 
-      // Combine all topics
-      const allTopics = [...questionTopics, ...quizTopics];
+      const completedQuestions = progressMap[subject.toLowerCase()] || 0;
 
-      // Get real subject progress for authenticated users
-      const completedQuestions = await getSubjectProgress(userId, subjectQuestions);
-
-      // Subject icon mapping - Professional icons
       const iconMap = {
-        'Math': '∫',
-        'Mathematics': '∫',
-        'Physics': 'Φ',
-        'Chemistry': '⚗',
-        'Biology': '🧬',
-        'English': 'Ε',
-        'Arabic': 'ع',
-        'French': 'Fr',
-        'Science': '🔬',
-        'Social Studies': '🌍',
-        'Geology': '⛰',
-        'Mechanics': '⚙',
-        'Deutsch': 'De'
+        'Math': '∫', 'Mathematics': '∫', 'Physics': 'Φ', 'Chemistry': '⚗',
+        'Biology': '🧬', 'English': 'Ε', 'Arabic': 'ع', 'French': 'Fr',
+        'Science': '🔬', 'Social Studies': '🌍', 'Geology': '⛰', 'Mechanics': '⚙', 'Deutsch': 'De',
       };
-
-      // Professional color mapping - Dark theme compatible
       const colorMap = {
-        'Math': 'bg-slate-600 dark:bg-slate-700',
-        'Mathematics': 'bg-slate-600 dark:bg-slate-700',
-        'Physics': 'bg-blue-600 dark:bg-blue-700',
-        'Chemistry': 'bg-indigo-600 dark:bg-indigo-700',
-        'Biology': 'bg-emerald-600 dark:bg-emerald-700',
-        'English': 'bg-purple-600 dark:bg-purple-700',
-        'Arabic': 'bg-amber-600 dark:bg-amber-700',
-        'French': 'bg-rose-600 dark:bg-rose-700',
-        'Science': 'bg-green-600 dark:bg-green-700',
-        'Social Studies': 'bg-orange-600 dark:bg-orange-700',
-        'Geology': 'bg-stone-600 dark:bg-stone-700',
-        'Mechanics': 'bg-gray-600 dark:bg-gray-700',
-        'Deutsch': 'bg-cyan-600 dark:bg-cyan-700'
+        'Math': 'bg-slate-600 dark:bg-slate-700', 'Mathematics': 'bg-slate-600 dark:bg-slate-700',
+        'Physics': 'bg-blue-600 dark:bg-blue-700', 'Chemistry': 'bg-indigo-600 dark:bg-indigo-700',
+        'Biology': 'bg-emerald-600 dark:bg-emerald-700', 'English': 'bg-purple-600 dark:bg-purple-700',
+        'Arabic': 'bg-amber-600 dark:bg-amber-700', 'French': 'bg-rose-600 dark:bg-rose-700',
+        'Science': 'bg-green-600 dark:bg-green-700', 'Social Studies': 'bg-orange-600 dark:bg-orange-700',
+        'Geology': 'bg-stone-600 dark:bg-stone-700', 'Mechanics': 'bg-gray-600 dark:bg-gray-700',
+        'Deutsch': 'bg-cyan-600 dark:bg-cyan-700',
       };
 
-      // Always include the subject, even if no topics/quizzes exist yet
-      subjectsData.push({
+      return {
         id: subject.toLowerCase().replace(/\s+/g, '-'),
         name: subject,
         icon: iconMap[subject] || '📖',
         color: colorMap[subject] || 'bg-gray-500',
         totalQuestions: subjectQuestions.length,
         totalQuizzes: subjectQuizzes.length,
-        completedQuestions: completedQuestions, // Real progress data
-        topics: allTopics
-      });
-    }
+        completedQuestions,
+        topics: [...questionTopics, ...quizTopics],
+      };
+    });
 
-    // Get real user stats and achievements
-    const userStats = await getUserStats(userId);
-    const recentAchievements = await getRecentAchievements(userId);
+    // Format achievements
+    const formattedAchievements = recentAchievements.map(a => ({
+      id: a._id,
+      title: a.title,
+      description: a.description,
+      icon: a.icon,
+      unlocked: getTimeAgo(a.earned_at),
+      isRare: a.is_rare,
+      subject: a.subject,
+    }));
 
-    // Get "continue where you left off" data - user's recent quiz attempts
+    // Continue data (uses the already-fetched userProgress)
     let continueData = null;
-    if (userId) {
+    if (userId && userProgress?.quiz_attempts?.length > 0) {
       try {
-        const progress = await UserProgress.findOne({ user_id: userId })
-          .select('quiz_attempts')
-          .lean();
-        
-        if (progress?.quiz_attempts?.length > 0) {
-          // Get completed quiz IDs
-          const completedQuizIds = progress.quiz_attempts
-            .map(qa => qa.quiz_id?.toString())
-            .filter(Boolean);
+        const completedQuizIds = userProgress.quiz_attempts
+          .map(qa => qa.quiz_id?.toString()).filter(Boolean);
+        const recentAttempts = userProgress.quiz_attempts.slice(-5).reverse();
+        const lastAttempt = recentAttempts[0];
 
-          // Find quizzes that still have uncompleted attempts or recent activity
-          const recentAttempts = progress.quiz_attempts.slice(-5).reverse();
-          
-          // Also get all completed quiz IDs for marking in browse
-          const lastAttempt = recentAttempts[0];
-          
-          if (lastAttempt?.quiz_id) {
-            const lastQuiz = await Quiz.findById(lastAttempt.quiz_id)
-              .select('title subject questions total_time')
-              .lean();
-            
-            if (lastQuiz) {
-              continueData = {
-                lastQuiz: {
-                  id: lastQuiz._id.toString(),
-                  title: lastQuiz.title,
-                  subject: lastQuiz.subject,
-                  totalQuestions: lastQuiz.questions?.length || 0,
-                  score: lastAttempt.score,
-                  questionsCorrect: lastAttempt.questions_correct,
-                  questionsTotal: lastAttempt.questions_total,
-                  completedAt: lastAttempt.completed_at
-                },
-                completedQuizIds,
-                recentAttempts: recentAttempts.map(qa => ({
-                  quizId: qa.quiz_id?.toString(),
-                  subject: qa.subject,
-                  score: qa.score,
-                  completedAt: qa.completed_at
-                }))
-              };
-            }
-          }
-          
-          // Even if no lastQuiz found, still provide completedQuizIds
-          if (!continueData) {
-            continueData = { completedQuizIds, recentAttempts: [] };
+        if (lastAttempt?.quiz_id) {
+          const lastQuiz = await Quiz.findById(lastAttempt.quiz_id)
+            .select('title subject questions total_time').lean();
+          if (lastQuiz) {
+            continueData = {
+              lastQuiz: {
+                id: lastQuiz._id.toString(),
+                title: lastQuiz.title,
+                subject: lastQuiz.subject,
+                totalQuestions: lastQuiz.questions?.length || 0,
+                score: lastAttempt.score,
+                questionsCorrect: lastAttempt.questions_correct,
+                questionsTotal: lastAttempt.questions_total,
+                completedAt: lastAttempt.completed_at,
+              },
+              completedQuizIds,
+              recentAttempts: recentAttempts.map(qa => ({
+                quizId: qa.quiz_id?.toString(),
+                subject: qa.subject,
+                score: qa.score,
+                completedAt: qa.completed_at,
+              })),
+            };
           }
         }
+        if (!continueData) continueData = { completedQuizIds, recentAttempts: [] };
       } catch (err) {
         console.error("Error getting continue data:", err);
       }
@@ -365,7 +359,7 @@ export const getHomePageData = async (req, res) => {
       data: {
         subjects: subjectsData,
         userStats,
-        recentAchievements,
+        recentAchievements: formattedAchievements,
         continueData,
         totalSubjects: subjectsData.length,
         totalQuestions: questions.length

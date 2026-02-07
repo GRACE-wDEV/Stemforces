@@ -90,7 +90,7 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api/]
       },
       devOptions: {
-        enabled: true
+        enabled: false
       }
     })
   ],
@@ -114,6 +114,16 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
-    minify: 'terser'
+    minify: 'terser',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-query': ['@tanstack/react-query'],
+          'vendor-charts': ['recharts'],
+          'vendor-state': ['zustand', 'axios'],
+        },
+      },
+    },
   }
 })

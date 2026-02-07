@@ -55,6 +55,7 @@ const quizSchema = new mongoose.Schema(
 
 // Index for better performance
 quizSchema.index({ published: 1, start_time: 1, end_time: 1 });
+quizSchema.index({ subject: 1, published: 1 });
 
 const Quiz = mongoose.model("Quiz", quizSchema);
 export default Quiz;

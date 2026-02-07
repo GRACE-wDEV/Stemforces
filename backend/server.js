@@ -46,11 +46,17 @@ app.use(express.json());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // basic rate limiting
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200 });
+const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 500 });
 app.use(limiter);
 
-// Serve uploaded files statically
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Enable ETags for conditional requests
+app.set('etag', 'strong');
+
+// Serve uploaded files with long cache (images rarely change)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  maxAge: '7d',
+  immutable: false,
+}));
 
 // Serve frontend in production (built files)
 // NOTE: static frontend serving is registered after API routes below
