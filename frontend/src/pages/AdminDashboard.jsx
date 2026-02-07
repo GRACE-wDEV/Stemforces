@@ -1900,7 +1900,8 @@ function TestBuilder({ subject, categories, refetch, subjects }) {
           published: true,
         };
         const res = await adminAPI.createQuestion(questionData);
-        if (res.data?.question) createdQuestions.push(res.data.question._id);
+        const created = res.data?.question || res.data;
+        if (created?._id) createdQuestions.push(created._id);
       }
       if (createdQuestions.length > 0) {
         await adminAPI.createQuiz({

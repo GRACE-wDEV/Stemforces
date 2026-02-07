@@ -161,7 +161,8 @@ const QuizPage = () => {
     setShowResults(false);
     setStartTimestamp(Date.now());
     setElapsedSeconds(0);
-    if (useTimer) setTimeLeft(customTime * 60);
+    const safeTime = (typeof customTime === 'number' && customTime > 0) ? customTime : 30;
+    if (useTimer) setTimeLeft(safeTime * 60);
     else setTimeLeft(0);
     setTimerStarted(true);
   };
@@ -295,7 +296,7 @@ const QuizPage = () => {
             </div>
             <div className="qp-start-stat">
               <Clock size={20} />
-              <span className="qp-stat-val">{customTime}m</span>
+              <span className="qp-stat-val">{customTime || 30}m</span>
               <span className="qp-stat-lbl">Time Limit</span>
             </div>
             <div className="qp-start-stat">
@@ -322,10 +323,31 @@ const QuizPage = () => {
             {useTimer && (
               <div className="qp-time-presets">
                 {[10, 15, 20, 30, 45, 60].map((t) => (
-                  <button key={t} onClick={() => setCustomTime(t)} className={`qp-preset ${customTime === t ? 'active' : ''}`}>
+                  <button key={t} onClick={() => setCustomTime(t)} className={`qp-preset ${customTime === t && !document.activeElement?.classList?.contains('qp-custom-time') ? 'active' : ''}`}>
                     {t}m
                   </button>
                 ))}
+                <div className="qp-custom-time-wrapper">
+                  <input
+                    type="number"
+                    min="1"
+                    max="999"
+                    className="qp-custom-time"
+                    placeholder="Custom"
+                    value={![10, 15, 20, 30, 45, 60].includes(customTime) ? customTime : ''}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value, 10);
+                      if (v > 0) setCustomTime(v);
+                    }}
+                    onFocus={() => {
+                      if ([10, 15, 20, 30, 45, 60].includes(customTime)) setCustomTime('');
+                    }}
+                    onBlur={(e) => {
+                      if (!e.target.value || parseInt(e.target.value, 10) <= 0) setCustomTime(30);
+                    }}
+                  />
+                  <span className="qp-custom-time-suffix">m</span>
+                </div>
               </div>
             )}
           </div>
@@ -672,6 +694,24 @@ const qpStyles = `
   }
   .qp-preset:hover { border-color: var(--primary); }
   .qp-preset.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+  .qp-custom-time-wrapper {
+    position: relative; display: inline-flex; align-items: center;
+  }
+  .qp-custom-time {
+    width: 80px; padding: 8px 26px 8px 12px; border-radius: 10px; background: var(--bg-secondary);
+    border: 1.5px solid var(--border-color); font-weight: 600; font-size: 14px;
+    color: var(--text-primary); text-align: center; transition: all .2s;
+    -moz-appearance: textfield; appearance: textfield;
+  }
+  .qp-custom-time::-webkit-inner-spin-button,
+  .qp-custom-time::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .qp-custom-time:hover { border-color: var(--primary); }
+  .qp-custom-time:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 2px rgba(99,102,241,.25); }
+  .qp-custom-time-suffix {
+    position: absolute; right: 10px; font-weight: 600; font-size: 14px;
+    color: var(--text-secondary); pointer-events: none;
+  }
 
   .qp-ai-banner {
     display: flex; align-items: center; gap: 14px; padding: 16px 20px;
