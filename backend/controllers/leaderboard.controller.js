@@ -223,20 +223,35 @@ export const getUserRanking = async (req, res) => {
       });
     }
 
-    // Calculate global rank
-    const usersAbove = await UserProgress.countDocuments({
-      $or: [
-        { total_xp: { $gt: userProgress.total_xp } },
-        {
-          total_xp: userProgress.total_xp,
-          total_questions_correct: { $gt: userProgress.total_questions_correct }
+    // Calculate global rank using aggregation to only count valid (non-orphaned) users
+    const rankResult = await UserProgress.aggregate([
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'user_id',
+          foreignField: '_id',
+          as: 'user'
         }
-      ]
-    });
+      },
+      { $unwind: '$user' },
+      { $match: { 'user.deleted_at': { $exists: false } } },
+      {
+        $match: {
+          $or: [
+            { total_xp: { $gt: userProgress.total_xp } },
+            {
+              total_xp: userProgress.total_xp,
+              total_questions_correct: { $gt: userProgress.total_questions_correct }
+            }
+          ]
+        }
+      },
+      { $count: 'count' }
+    ]);
 
-    const globalRank = usersAbove + 1;
+    const globalRank = (rankResult[0]?.count || 0) + 1;
 
-    // Get nearby users for context
+    // Get nearby users for context (also filtered to valid users only)
     const nearbyUsers = await UserProgress.aggregate([
       {
         $lookup: {
@@ -246,9 +261,8 @@ export const getUserRanking = async (req, res) => {
           as: 'user'
         }
       },
-      {
-        $unwind: '$user'
-      },
+      { $unwind: '$user' },
+      { $match: { 'user.deleted_at': { $exists: false } } },
       {
         $sort: { total_xp: -1, total_questions_correct: -1 }
       },
