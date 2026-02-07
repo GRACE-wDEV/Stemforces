@@ -313,6 +313,7 @@ export default function CustomQuizPage() {
             {currentQuestion.difficulty}
           </div>
           <AIHintButton
+            key={currentQuestion._id || currentQuestion.id}
             question={currentQuestion.question_text || currentQuestion.question}
             options={currentQuestion.choices.map(c => c.text)}
             subject={subject}

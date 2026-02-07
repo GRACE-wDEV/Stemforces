@@ -247,7 +247,7 @@ export const startBattle = async (req, res) => {
     }
     
     room.questions = questions.map(q => q._id);
-    room.status = 'starting';
+    room.status = 'in-progress';
     room.startedAt = new Date(Date.now() + 5000); // 5 second countdown
     
     await room.save();
@@ -269,7 +269,7 @@ export const startBattle = async (req, res) => {
     res.json({
       success: true,
       data: {
-        status: 'starting',
+        status: 'in-progress',
         startsIn: 5,
         questions: formattedQuestions,
         config: room.config
@@ -449,7 +449,7 @@ export const endBattle = async (req, res) => {
         if (existingWin === 0) {
           await Achievement.create({
             user_id: ranking.player,
-            achievement_type: 'quiz_champion',
+            achievement_type: 'battle_winner',
             title: 'Battle Victor',
             description: 'Won your first quiz battle',
             icon: '⚔️',

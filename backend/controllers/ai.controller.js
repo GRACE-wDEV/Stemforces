@@ -164,10 +164,10 @@ export const getStudyRecommendations = async (req, res) => {
   }
 };
 
-// Generate battle questions (uses same generate logic)
+// Generate battle questions (batch generation for speed)
 export const generateBattleQuestions = async (req, res) => {
   try {
-    const { subject, count = 5 } = req.body;
+    const { subject, difficulty = 'medium', count = 10 } = req.body;
     
     if (!subject) {
       return res.status(400).json({
@@ -177,23 +177,36 @@ export const generateBattleQuestions = async (req, res) => {
     }
     
     const apiKey = await getUserApiKey(req.user.id);
+    const safeCount = Math.min(Math.max(count, 3), 20);
     
+    // Try batch generation first (1 API call for all questions)
+    const batchResult = await geminiService.generateBattleQuestionsBatch(apiKey, subject, difficulty, safeCount);
+    
+    if (batchResult.success && batchResult.questions?.length >= 3) {
+      return res.json({
+        success: true,
+        data: { questions: batchResult.questions }
+      });
+    }
+    
+    // Fallback: generate individually with concurrency
+    const batchSize = 3;
     const questions = [];
-    for (let i = 0; i < Math.min(count, 5); i++) {
-      const result = await geminiService.generateQuestion(apiKey, subject, 'mixed topics', 'medium');
-      if (result.success && result.question) {
-        questions.push({
-          ...result.question,
-          timeLimit: 20
-        });
+    for (let i = 0; i < safeCount; i += batchSize) {
+      const batch = Array.from({ length: Math.min(batchSize, safeCount - i) }, () =>
+        geminiService.generateQuestion(apiKey, subject, 'mixed topics', difficulty)
+      );
+      const results = await Promise.allSettled(batch);
+      for (const r of results) {
+        if (r.status === 'fulfilled' && r.value.success && r.value.question) {
+          questions.push({ ...r.value.question, timeLimit: 20 });
+        }
       }
     }
     
     res.json({
       success: questions.length > 0,
-      data: {
-        questions
-      }
+      data: { questions }
     });
   } catch (error) {
     console.error('Generate battle questions error:', error);

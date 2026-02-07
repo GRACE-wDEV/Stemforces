@@ -935,6 +935,7 @@ const QuizPage = () => {
               Question {currentQuestion + 1} of {quizData.questions.length}
             </span>
             <AIHintButton
+              key={question.id}
               question={question.question}
               options={question.choices.map(c => c.text)}
               subject={quizData.subject}

@@ -293,6 +293,69 @@ Generate a ${difficulty} difficulty question about ${topic} in ${subject}:`;
 };
 
 /**
+ * Generate multiple battle questions in a single API call (batch)
+ */
+export const generateBattleQuestionsBatch = async (apiKey, subject, difficulty, count) => {
+  const model = createGeminiClient(apiKey);
+  
+  if (!model) {
+    return { success: false, error: 'AI is currently unavailable' };
+  }
+  
+  try {
+    const prompt = `Generate exactly ${count} unique ${difficulty} difficulty multiple choice questions about ${subject}.
+
+Return ONLY a valid JSON array (no extra text). Each element must have this exact format:
+[
+  {
+    "question": "Question text (use LaTeX with $ for math)",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correctAnswer": 0,
+    "explanation": "Brief explanation",
+    "difficulty": "${difficulty}",
+    "topic": "specific topic"
+  }
+]
+
+Rules:
+- Exactly ${count} questions
+- Each question has exactly 4 options
+- correctAnswer is the 0-based index of the correct option
+- Questions should be diverse across different topics within ${subject}
+- Return ONLY the JSON array, nothing else`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
+    // Parse JSON array from response
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      const questions = JSON.parse(jsonMatch[0]);
+      if (Array.isArray(questions) && questions.length > 0) {
+        return {
+          success: true,
+          questions: questions.map(q => ({
+            question: q.question || 'Question',
+            options: Array.isArray(q.options) ? q.options : ['A', 'B', 'C', 'D'],
+            correctAnswer: typeof q.correctAnswer === 'number' ? q.correctAnswer : 0,
+            explanation: q.explanation || '',
+            difficulty: q.difficulty || difficulty,
+            topic: q.topic || subject,
+            timeLimit: 20
+          }))
+        };
+      }
+    }
+    
+    return { success: false, error: 'Failed to parse batch questions' };
+  } catch (error) {
+    console.error('Gemini Batch Question Error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
  * Validate an API key by making a simple request
  */
 export const validateApiKey = async (apiKey) => {
@@ -337,5 +400,6 @@ export default {
   getHint,
   getStudyRecommendations,
   generateQuestion,
+  generateBattleQuestionsBatch,
   validateApiKey
 };
