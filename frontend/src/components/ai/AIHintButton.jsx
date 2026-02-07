@@ -2,7 +2,7 @@ import { useState } from "react";
 import { getHint } from "../../api/ai";
 import LaTeXRenderer from "../common/LaTeXRenderer";
 
-export default function AIHintButton({ question, options, subject, disabled }) {
+export default function AIHintButton({ question, options, subject, disabled, staticHint }) {
   const [hints, setHints] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -26,17 +26,28 @@ export default function AIHintButton({ question, options, subject, disabled }) {
         setHints(prev => [...prev, response.data.hint]);
         setIsOpen(true);
         setError(null);
+      } else if (staticHint && hints.length === 0) {
+        // AI failed — fall back to the static hint stored in the DB
+        setHints([staticHint]);
+        setIsOpen(true);
+        setError(null);
       } else if (response.message) {
         setError(response.message || "AI service unavailable");
-        // Still open panel to show error
         if (hints.length === 0) setIsOpen(true);
       } else {
         throw new Error("Invalid response format");
       }
     } catch (err) {
       console.error("Hint fetch error:", err);
-      setError(err.message || "Couldn't get hint. Try again.");
-      if (hints.length === 0) setIsOpen(true);
+      // AI call failed — fall back to static hint if available
+      if (staticHint && hints.length === 0) {
+        setHints([staticHint]);
+        setIsOpen(true);
+        setError(null);
+      } else {
+        setError(err.message || "Couldn't get hint. Try again.");
+        if (hints.length === 0) setIsOpen(true);
+      }
     } finally {
       setIsLoading(false);
     }

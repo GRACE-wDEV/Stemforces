@@ -32,6 +32,7 @@ const questionSchema = new mongoose.Schema(
     source: { type: String, required: true },
     tags: [{ type: String }],
     explanation: { type: String },
+    hint: { type: String },
     attachments: [{
       filename: String,
       url: String,

@@ -317,6 +317,7 @@ export default function CustomQuizPage() {
             options={currentQuestion.choices.map(c => c.text)}
             subject={subject}
             disabled={!!selectedAnswer}
+            staticHint={currentQuestion.hint}
           />
         </div>
         <div className="question-text">

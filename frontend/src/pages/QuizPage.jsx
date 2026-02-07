@@ -939,6 +939,7 @@ const QuizPage = () => {
               options={question.choices.map(c => c.text)}
               subject={quizData.subject}
               disabled={!!selectedAnswers[question.id]}
+              staticHint={question.hint}
             />
           </div>
 

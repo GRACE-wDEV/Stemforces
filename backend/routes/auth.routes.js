@@ -126,6 +126,174 @@ router.get("/users", protect, admin, async (req, res) => {
   }
 });
 
+// ─── Admin User Management ────────────────────────────────────────────────────
+
+// @desc    Get single user details (admin)
+// @route   GET /api/auth/users/:id
+router.get("/users/:id", protect, admin, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Fetch user progress for stats
+    const progress = await UserProgress.findOne({ user_id: user._id });
+    const achievements = await Achievement.find({ user_id: user._id });
+
+    res.json({
+      user,
+      stats: progress ? {
+        totalQuestions: progress.total_questions_attempted || 0,
+        correctAnswers: progress.total_questions_correct || 0,
+        accuracy: progress.total_questions_attempted > 0
+          ? Math.round((progress.total_questions_correct / progress.total_questions_attempted) * 100) : 0,
+        totalXP: progress.total_xp || 0,
+        level: progress.level || 1,
+        currentStreak: progress.current_streak || 0,
+        longestStreak: progress.longest_streak || 0,
+        quizzesCompleted: progress.total_quizzes_completed || 0,
+        lastActivity: progress.last_activity_date,
+      } : null,
+      achievementCount: achievements.length,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Update user role (admin)
+// @route   PATCH /api/auth/users/:id/role
+router.patch("/users/:id/role", protect, admin, async (req, res) => {
+  try {
+    const { role } = req.body;
+    if (!["user", "editor", "admin"].includes(role)) {
+      return res.status(400).json({ message: "Invalid role. Must be user, editor, or admin." });
+    }
+
+    // Prevent admin from changing their own role
+    if (req.params.id === req.user._id.toString()) {
+      return res.status(400).json({ message: "Cannot change your own role." });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { role },
+      { new: true }
+    ).select("-password");
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.json({ user, message: `Role updated to ${role}` });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Toggle user active status (admin)
+// @route   PATCH /api/auth/users/:id/status
+router.patch("/users/:id/status", protect, admin, async (req, res) => {
+  try {
+    const { active } = req.body;
+    if (typeof active !== "boolean") {
+      return res.status(400).json({ message: "active must be a boolean" });
+    }
+
+    // Prevent admin from deactivating themselves
+    if (req.params.id === req.user._id.toString()) {
+      return res.status(400).json({ message: "Cannot deactivate your own account." });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { active },
+      { new: true }
+    ).select("-password");
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.json({ user, message: `User ${active ? "activated" : "deactivated"}` });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Update user profile (name, email, bio, department) by admin
+// @route   PUT /api/auth/users/:id
+router.put("/users/:id", protect, admin, async (req, res) => {
+  try {
+    const { name, email, bio, department } = req.body;
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Check for email uniqueness if changing email
+    if (email && email !== user.email) {
+      const existing = await User.findOne({ email });
+      if (existing) return res.status(400).json({ message: "Email already in use by another user." });
+      user.email = email;
+    }
+
+    // Check for name uniqueness if changing name
+    if (name && name !== user.name) {
+      const existing = await User.findOne({ name });
+      if (existing) return res.status(400).json({ message: "Name already in use by another user." });
+      user.name = name;
+    }
+
+    if (bio !== undefined) user.bio = bio;
+    if (department !== undefined) user.department = department;
+
+    const updated = await user.save();
+    const { password, ...userObj } = updated.toObject();
+
+    res.json({ user: userObj, message: "User updated successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Delete a user (admin)
+// @route   DELETE /api/auth/users/:id
+router.delete("/users/:id", protect, admin, async (req, res) => {
+  try {
+    // Prevent admin from deleting themselves
+    if (req.params.id === req.user._id.toString()) {
+      return res.status(400).json({ message: "Cannot delete your own account." });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Optionally clean up user-related data
+    await UserProgress.deleteMany({ user_id: user._id });
+    await Achievement.deleteMany({ user_id: user._id });
+    await User.findByIdAndDelete(user._id);
+
+    res.json({ message: `User "${user.name}" deleted successfully` });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Reset user password (admin sets a new temporary password)
+// @route   PATCH /api/auth/users/:id/reset-password
+router.patch("/users/:id/reset-password", protect, admin, async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters." });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.password = newPassword; // bcrypt pre-save hook will hash it
+    await user.save();
+
+    res.json({ message: `Password reset for "${user.name}"` });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Update user's Gemini API key
 router.put("/me/api-key", protect, async (req, res) => {
   try {

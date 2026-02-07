@@ -76,7 +76,15 @@ export const adminAPI = {
   // Users
   getUsers: () => api.get(`/auth/users`),
 
+  getUserDetail: (id) => api.get(`/auth/users/${id}`),
+
   updateUserRole: (id, role) => api.patch(`/auth/users/${id}/role`, { role }),
   
   toggleUserStatus: (id, active) => api.patch(`/auth/users/${id}/status`, { active }),
+
+  updateUser: (id, data) => api.put(`/auth/users/${id}`, data),
+
+  deleteUser: (id) => api.delete(`/auth/users/${id}`),
+
+  resetUserPassword: (id, newPassword) => api.patch(`/auth/users/${id}/reset-password`, { newPassword }),
 };

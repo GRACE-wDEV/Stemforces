@@ -72,8 +72,7 @@ const createGeminiClient = (apiKey) => {
   }
   try {
     const genAI = new GoogleGenerativeAI(keyToUse);
-    // Use gemini-1.5-flash - fast, efficient, and currently available
-    return genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    return genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
   } catch (error) {
     console.error('Failed to create Gemini client:', error);
     return null;
@@ -302,26 +301,32 @@ export const validateApiKey = async (apiKey) => {
   }
   
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    // Use gemini-1.5-flash - fast and efficient model
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    // Lightweight validation: list models (no tokens consumed)
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey.trim())}`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } }
+    );
     
-    // Make a simple request to validate
-    const result = await model.generateContent('Say "OK" in one word');
-    const response = await result.response;
-    const text = response.text();
-    
-    if (text) {
+    if (res.ok) {
       return { valid: true };
     }
-    return { valid: false, error: 'Unexpected response' };
+    
+    const data = await res.json().catch(() => null);
+    const reason = data?.error?.details?.find(d => d.reason)?.reason;
+    const msg = data?.error?.message || 'Unknown error';
+    
+    if (reason === 'API_KEY_INVALID' || res.status === 400) {
+      return { valid: false, error: 'Invalid API key. Make sure you copied the full key from Google AI Studio.' };
+    }
+    if (res.status === 403) {
+      return { valid: false, error: 'API key does not have permission. Enable the Generative Language API in your Google Cloud console.' };
+    }
+    return { valid: false, error: msg };
   } catch (error) {
     console.error('API Key validation error:', error);
     return { 
       valid: false, 
-      error: error.message?.includes('API_KEY_INVALID') 
-        ? 'Invalid API key' 
-        : 'Failed to validate key'
+      error: 'Network error while validating key. Please try again.'
     };
   }
 };
