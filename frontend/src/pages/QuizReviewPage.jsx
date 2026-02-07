@@ -102,18 +102,27 @@ export default function QuizReviewPage() {
                 </div>
 
                 <div className="choices-list">
-                  {q.choices?.map((choice, cIdx) => (
-                    <div 
-                      key={choice.id || cIdx} 
-                      className={`choice ${choice.isCorrect ? 'correct' : ''}`}
-                    >
-                      <span className="choice-letter">{String.fromCharCode(65 + cIdx)}</span>
-                      <span className="choice-text">
-                        <LaTeXRenderer content={choice.text} />
-                      </span>
-                      {choice.isCorrect && <CheckCircle size={18} className="correct-icon" />}
-                    </div>
-                  ))}
+                  {q.choices?.map((choice, cIdx) => {
+                    const isRight = choice.isCorrect;
+                    const isPicked = choice.isUserChoice;
+                    const wrongPick = isPicked && !isRight;
+                    let cls = 'choice';
+                    if (isRight) cls += ' correct';
+                    if (wrongPick) cls += ' wrong';
+                    if (isPicked && isRight) cls += ' user-correct';
+
+                    return (
+                      <div key={choice.id || cIdx} className={cls}>
+                        <span className="choice-letter">{String.fromCharCode(65 + cIdx)}</span>
+                        <span className="choice-text">
+                          <LaTeXRenderer content={choice.text} />
+                        </span>
+                        {isRight && <CheckCircle size={18} className="correct-icon" />}
+                        {wrongPick && <XCircle size={18} className="wrong-icon" />}
+                        {isPicked && <span className="you-picked">Your answer</span>}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {q.explanation && (
@@ -300,8 +309,31 @@ const styles = `
   }
 
   .choice.correct {
-    background: #dcfce7;
-    border-color: #10b981;
+    background: #d1fae5;
+    border-color: #059669;
+    color: #064e3b;
+  }
+
+  .choice.correct .choice-text,
+  .choice.correct .choice-text * {
+    color: #064e3b;
+  }
+
+  .choice.wrong {
+    background: #fee2e2;
+    border-color: #ef4444;
+    color: #7f1d1d;
+  }
+
+  .choice.wrong .choice-text,
+  .choice.wrong .choice-text * {
+    color: #7f1d1d;
+  }
+
+  .choice.user-correct {
+    background: #d1fae5;
+    border-color: #059669;
+    box-shadow: 0 0 0 2px #059669;
   }
 
   .choice-letter {
@@ -318,16 +350,48 @@ const styles = `
   }
 
   .choice.correct .choice-letter {
-    background: #10b981;
+    background: #059669;
+    color: white;
+  }
+
+  .choice.wrong .choice-letter {
+    background: #ef4444;
     color: white;
   }
 
   .choice-text { flex: 1; }
 
   .correct-icon {
-    color: #10b981;
+    color: #059669;
     flex-shrink: 0;
     margin-top: 2px;
+  }
+
+  .wrong-icon {
+    color: #ef4444;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .you-picked {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .choice.correct .you-picked {
+    background: #059669;
+    color: white;
+  }
+
+  .choice.wrong .you-picked {
+    background: #ef4444;
+    color: white;
   }
 
   .explanation {

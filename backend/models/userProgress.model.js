@@ -41,7 +41,13 @@ const userProgressSchema = new mongoose.Schema(
       time_taken: Number, // in minutes
       questions_correct: Number,
       questions_total: Number,
-      completed_at: { type: Date, default: Date.now }
+      completed_at: { type: Date, default: Date.now },
+      results: [{
+        questionId: { type: mongoose.Schema.Types.ObjectId },
+        userAnswer: String,
+        correctAnswer: String,
+        isCorrect: Boolean
+      }]
     }],
     
     // Daily activity tracking

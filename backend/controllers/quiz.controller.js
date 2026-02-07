@@ -572,6 +572,14 @@ export const getQuizReview = async (req, res) => {
       });
     }
     
+    // Build a map of user answers from stored results
+    const userAnswerMap = {};
+    if (attempt.results && attempt.results.length > 0) {
+      attempt.results.forEach(r => {
+        userAnswerMap[r.questionId?.toString()] = r.userAnswer;
+      });
+    }
+
     // Build review data
     const reviewData = {
       quizId: quiz._id,
@@ -583,19 +591,27 @@ export const getQuizReview = async (req, res) => {
       questionsTotal: attempt.questions_total,
       timeTaken: attempt.time_taken,
       questions: quiz.questions.map(q => {
-        // Find the correct answer
         const correctChoice = q.choices?.find(c => c.is_correct);
+        const userAnswer = userAnswerMap[q._id?.toString()] || null;
         return {
           id: q._id,
           title: q.title,
           question: q.question_text,
           difficulty: q.difficulty,
           explanation: q.explanation,
-          choices: q.choices?.map(c => ({
-            id: c.id || c._id?.toString(),
-            text: c.text,
-            isCorrect: c.is_correct
-          })),
+          userAnswer,
+          choices: q.choices?.map(c => {
+            const isUserChoice = userAnswer && (
+              userAnswer === c.text ||
+              userAnswer === (c.id || c._id?.toString())
+            );
+            return {
+              id: c.id || c._id?.toString(),
+              text: c.text,
+              isCorrect: c.is_correct,
+              isUserChoice: !!isUserChoice
+            };
+          }),
           correctAnswer: correctChoice?.text
         };
       })

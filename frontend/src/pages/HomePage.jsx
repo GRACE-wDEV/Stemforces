@@ -510,9 +510,9 @@ const styles = `
   color: white; transition: all 0.25s; position: relative; overflow: hidden;
 }
 .hp-action-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
-.hp-action-card.daily { background: linear-gradient(135deg, #f97316, #ea580c); }
-.hp-action-card.battle { background: linear-gradient(135deg, #6366f1, #4f46e5); }
-.hp-action-card.leaderboard { background: linear-gradient(135deg, #eab308, #ca8a04); }
+.hp-action-card.daily { background: linear-gradient(135deg, #dc2626, #991b1b); }
+.hp-action-card.battle { background: linear-gradient(135deg, #1d4ed8, #1e3a8a); }
+.hp-action-card.leaderboard { background: linear-gradient(135deg, #059669, #064e3b); }
 .hp-action-icon { font-size: 2rem; flex-shrink: 0; opacity: 0.9; }
 .hp-action-body { flex: 1; }
 .hp-action-badge {
