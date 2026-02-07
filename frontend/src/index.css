@@ -155,7 +155,6 @@ p {
 .page-wrapper {
   min-height: 100vh;
   background: var(--bg-primary);
-  padding-bottom: 20px;
 }
 
 /* ================================
