@@ -57,29 +57,50 @@ export function formatXP(xp) {
 }
 
 /**
- * Get level title based on level number
- * @param {number} level - Current level
- * @returns {string} - Level title
+ * Level titles inspired by Codeforces ranking system.
+ * Thresholds are intentionally stretched for a meaningful grind.
+ *
+ *  Lvl 1-4     Newbie                     (gray)
+ *  Lvl 5-9     Pupil                      (green)
+ *  Lvl 10-17   Apprentice                 (teal)
+ *  Lvl 18-27   Specialist                 (cyan)
+ *  Lvl 28-39   Intermediate               (blue)
+ *  Lvl 40-54   Expert                     (blue-violet)
+ *  Lvl 55-74   Candidate Master           (purple)
+ *  Lvl 75-99   Master                     (orange)
+ *  Lvl 100-139 Grandmaster                (red-orange)
+ *  Lvl 140-199 International Grandmaster  (red)
+ *  Lvl 200+    Legendary Grandmaster      (deep red)
  */
 export function getLevelTitle(level) {
-  if (level >= 50) return 'Master Scholar';
-  if (level >= 40) return 'Expert';
-  if (level >= 30) return 'Advanced';
-  if (level >= 20) return 'Proficient';
-  if (level >= 10) return 'Intermediate';
-  if (level >= 5) return 'Apprentice';
-  return 'Beginner';
+  if (level >= 200) return 'Legendary Grandmaster';
+  if (level >= 140) return 'International Grandmaster';
+  if (level >= 100) return 'Grandmaster';
+  if (level >= 75)  return 'Master';
+  if (level >= 55)  return 'Candidate Master';
+  if (level >= 40)  return 'Expert';
+  if (level >= 28)  return 'Intermediate';
+  if (level >= 18)  return 'Specialist';
+  if (level >= 10)  return 'Apprentice';
+  if (level >= 5)   return 'Pupil';
+  return 'Newbie';
 }
 
 /**
- * Get level color for styling
+ * Get level color matching Codeforces rank colors
  * @param {number} level - Current level
  * @returns {string} - CSS color value
  */
 export function getLevelColor(level) {
-  if (level >= 50) return '#f59e0b'; // Gold
-  if (level >= 30) return '#a855f7'; // Purple
-  if (level >= 20) return '#3b82f6'; // Blue
-  if (level >= 10) return '#10b981'; // Green
-  return '#6b7280'; // Gray
+  if (level >= 200) return '#aa0000'; // Deep red – Legendary GM
+  if (level >= 140) return '#dc2626'; // Red – International GM
+  if (level >= 100) return '#ef4444'; // Red-orange – GM
+  if (level >= 75)  return '#f97316'; // Orange – Master
+  if (level >= 55)  return '#a855f7'; // Purple – Candidate Master
+  if (level >= 40)  return '#7c3aed'; // Blue-violet – Expert
+  if (level >= 28)  return '#3b82f6'; // Blue – Intermediate
+  if (level >= 18)  return '#06b6d4'; // Cyan – Specialist
+  if (level >= 10)  return '#14b8a6'; // Teal – Apprentice
+  if (level >= 5)   return '#22c55e'; // Green – Pupil
+  return '#6b7280'; // Gray – Newbie
 }
