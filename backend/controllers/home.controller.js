@@ -302,12 +302,71 @@ export const getHomePageData = async (req, res) => {
     const userStats = await getUserStats(userId);
     const recentAchievements = await getRecentAchievements(userId);
 
+    // Get "continue where you left off" data - user's recent quiz attempts
+    let continueData = null;
+    if (userId) {
+      try {
+        const progress = await UserProgress.findOne({ user_id: userId })
+          .select('quiz_attempts')
+          .lean();
+        
+        if (progress?.quiz_attempts?.length > 0) {
+          // Get completed quiz IDs
+          const completedQuizIds = progress.quiz_attempts
+            .map(qa => qa.quiz_id?.toString())
+            .filter(Boolean);
+
+          // Find quizzes that still have uncompleted attempts or recent activity
+          const recentAttempts = progress.quiz_attempts.slice(-5).reverse();
+          
+          // Also get all completed quiz IDs for marking in browse
+          const lastAttempt = recentAttempts[0];
+          
+          if (lastAttempt?.quiz_id) {
+            const lastQuiz = await Quiz.findById(lastAttempt.quiz_id)
+              .select('title subject questions total_time')
+              .lean();
+            
+            if (lastQuiz) {
+              continueData = {
+                lastQuiz: {
+                  id: lastQuiz._id.toString(),
+                  title: lastQuiz.title,
+                  subject: lastQuiz.subject,
+                  totalQuestions: lastQuiz.questions?.length || 0,
+                  score: lastAttempt.score,
+                  questionsCorrect: lastAttempt.questions_correct,
+                  questionsTotal: lastAttempt.questions_total,
+                  completedAt: lastAttempt.completed_at
+                },
+                completedQuizIds,
+                recentAttempts: recentAttempts.map(qa => ({
+                  quizId: qa.quiz_id?.toString(),
+                  subject: qa.subject,
+                  score: qa.score,
+                  completedAt: qa.completed_at
+                }))
+              };
+            }
+          }
+          
+          // Even if no lastQuiz found, still provide completedQuizIds
+          if (!continueData) {
+            continueData = { completedQuizIds, recentAttempts: [] };
+          }
+        }
+      } catch (err) {
+        console.error("Error getting continue data:", err);
+      }
+    }
+
     res.json({
       success: true,
       data: {
         subjects: subjectsData,
         userStats,
         recentAchievements,
+        continueData,
         totalSubjects: subjectsData.length,
         totalQuestions: questions.length
       }

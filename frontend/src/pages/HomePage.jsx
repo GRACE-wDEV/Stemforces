@@ -5,7 +5,7 @@ import {
   BookOpen, Trophy, Target, Play, User, Award,
   Calendar, ChevronRight, ChevronDown, Timer, Flame,
   Medal, Swords, Crown, ArrowRight, Zap,
-  Sparkles, Brain, Search, X
+  Sparkles, Brain, Search, X, Eye, CheckCircle
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { calculateLevel, getLevelProgress } from '../utils/levelUtils';
@@ -59,6 +59,8 @@ const HomePage = () => {
     xp: 0, level: 1, rank: 0, timeSpent: 0, averageScore: 0
   };
   const recentAchievements = homeData?.data?.recentAchievements || [];
+  const continueData = homeData?.data?.continueData || null;
+  const completedQuizIds = useMemo(() => new Set(continueData?.completedQuizIds || []), [continueData]);
 
   const currentLevel = calculateLevel(userStats.xp);
   const levelProgress = getLevelProgress(userStats.xp);
@@ -87,6 +89,19 @@ const HomePage = () => {
       .filter(s => s.completedQuestions > 0 && s.completedQuestions < s.totalQuestions)
       .sort((a, b) => (b.completedQuestions / (b.totalQuestions || 1)) - (a.completedQuestions / (a.totalQuestions || 1)))[0];
   }, [subjects]);
+
+  // Find the next uncompleted quiz in a subject for direct navigation
+  const findNextQuiz = (subject) => {
+    if (!subject?.topics) return null;
+    // Find first topic (quiz) the user hasn't completed yet
+    for (const topic of subject.topics) {
+      if (topic.type === 'quiz' && !completedQuizIds.has(topic.id)) {
+        return topic;
+      }
+    }
+    // Fallback: first topic of any type
+    return subject.topics.find(t => !completedQuizIds.has(t.id)) || subject.topics[0];
+  };
 
   const startQuiz = (subject, topic) => {
     navigate(`/quiz/${subject.id}/${topic.id}`, {
@@ -213,27 +228,73 @@ const HomePage = () => {
       </section>
 
       {/* ── CONTINUE WHERE YOU LEFT OFF ── */}
-      {isAuthenticated && continueSubject && (
+      {isAuthenticated && (continueData?.lastQuiz || continueSubject) && (
         <section className="hp-continue">
-          <div className="hp-continue-card" onClick={() => setExpandedSubject(expandedSubject === continueSubject.id ? null : continueSubject.id)}>
-            <div className="hp-continue-left">
-              <Sparkles size={18} className="hp-continue-spark" />
-              <span className="hp-continue-label">Continue where you left off</span>
-            </div>
-            <div className="hp-continue-right">
-              <div className={`hp-subj-icon ${continueSubject.color}`}>{continueSubject.icon}</div>
-              <div>
-                <h4>{continueSubject.name}</h4>
-                <div className="hp-continue-progress">
-                  <div className="hp-continue-bar">
-                    <div className="hp-continue-bar-fill" style={{ width: `${Math.round((continueSubject.completedQuestions / (continueSubject.totalQuestions || 1)) * 100)}%` }} />
-                  </div>
-                  <span>{continueSubject.completedQuestions}/{continueSubject.totalQuestions}</span>
+          {/* Last quiz you took — direct link */}
+          {continueData?.lastQuiz && (
+            <div
+              className="hp-continue-card hp-continue-quiz"
+              onClick={() => {
+                const q = continueData.lastQuiz;
+                // Find the subject slug
+                const subjectSlug = (q.subject || '').toLowerCase().replace(/\s+/g, '-');
+                navigate(`/quiz/${subjectSlug}/${q.id}`, {
+                  state: { subjectName: q.subject, topicName: q.title }
+                });
+              }}
+            >
+              <div className="hp-continue-left">
+                <Play size={18} className="hp-continue-play" />
+                <div>
+                  <span className="hp-continue-label">Last Quiz</span>
+                  <h4 className="hp-continue-title">{continueData.lastQuiz.title}</h4>
                 </div>
               </div>
-              <ChevronRight size={16} />
+              <div className="hp-continue-right">
+                <div className="hp-continue-score">
+                  <span className="hp-continue-score-val">{continueData.lastQuiz.score || 0}%</span>
+                  <span className="hp-continue-score-sub">{continueData.lastQuiz.questionsCorrect}/{continueData.lastQuiz.questionsTotal}</span>
+                </div>
+                <div className="hp-continue-action">
+                  {completedQuizIds.has(continueData.lastQuiz.id) ? 'Review' : 'Retake'}
+                  <ArrowRight size={14} />
+                </div>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Next uncompleted subject/quiz — smart navigation */}
+          {continueSubject && (
+            <div
+              className="hp-continue-card"
+              onClick={() => {
+                const nextQuiz = findNextQuiz(continueSubject);
+                if (nextQuiz) {
+                  startQuiz(continueSubject, nextQuiz);
+                } else {
+                  setExpandedSubject(expandedSubject === continueSubject.id ? null : continueSubject.id);
+                }
+              }}
+            >
+              <div className="hp-continue-left">
+                <Sparkles size={18} className="hp-continue-spark" />
+                <span className="hp-continue-label">Continue where you left off</span>
+              </div>
+              <div className="hp-continue-right">
+                <div className={`hp-subj-icon ${continueSubject.color}`}>{continueSubject.icon}</div>
+                <div>
+                  <h4>{continueSubject.name}</h4>
+                  <div className="hp-continue-progress">
+                    <div className="hp-continue-bar">
+                      <div className="hp-continue-bar-fill" style={{ width: `${Math.round((continueSubject.completedQuestions / (continueSubject.totalQuestions || 1)) * 100)}%` }} />
+                    </div>
+                    <span>{continueSubject.completedQuestions}/{continueSubject.totalQuestions}</span>
+                  </div>
+                </div>
+                <ArrowRight size={16} />
+              </div>
+            </div>
+          )}
         </section>
       )}
 
@@ -306,10 +367,15 @@ const HomePage = () => {
                   {/* Expanded topics */}
                   {isExpanded && (
                     <div className="hp-topics-list">
-                      {subject.topics?.length > 0 ? subject.topics.map((topic) => (
-                        <div key={topic.id} className="hp-topic">
+                      {subject.topics?.length > 0 ? subject.topics.map((topic) => {
+                        const topicCompleted = completedQuizIds.has(topic.id);
+                        return (
+                        <div key={topic.id} className={`hp-topic ${topicCompleted ? 'hp-topic-done' : ''}`}>
                           <div className="hp-topic-top">
-                            <h4>{topic.name}</h4>
+                            <h4>
+                              {topicCompleted && <CheckCircle size={14} className="hp-topic-check" />}
+                              {topic.name}
+                            </h4>
                             <span className={`hp-diff-badge ${(topic.difficulty || '').toLowerCase()}`}>
                               {topic.difficulty || 'Mixed'}
                             </span>
@@ -320,13 +386,21 @@ const HomePage = () => {
                             <span><Timer size={13} /> ~{topic.estimatedTime}min</span>
                           </div>
                           <button
-                            className="hp-start-btn"
-                            onClick={(e) => { e.stopPropagation(); startQuiz(subject, topic); }}
+                            className={`hp-start-btn ${topicCompleted ? 'hp-start-btn-review' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (topicCompleted) {
+                                navigate(`/quiz/${topic.id}/review`);
+                              } else {
+                                startQuiz(subject, topic);
+                              }
+                            }}
                           >
-                            <Play size={14} /> Start Quiz
+                            {topicCompleted ? <><Eye size={14} /> Review</> : <><Play size={14} /> Start Quiz</>}
                           </button>
                         </div>
-                      )) : (
+                        );
+                      }) : (
                         <div className="hp-topics-empty">
                           <BookOpen size={24} />
                           <p>No content available yet for {subject.name}</p>
@@ -526,18 +600,35 @@ const styles = `
 .hp-action-card:hover .hp-action-arrow { transform: translateX(4px); opacity: 1; }
 
 /* ═══ CONTINUE CARD ═══ */
-.hp-continue { max-width: 1200px; margin: 16px auto 0; padding: 0 20px; }
+.hp-continue { max-width: 1200px; margin: 16px auto 0; padding: 0 20px; display: flex; flex-direction: column; gap: 10px; }
 .hp-continue-card {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 20px; background: var(--bg-secondary); border: 1px solid var(--border-color);
   border-radius: 14px; cursor: pointer; transition: all 0.2s; gap: 16px; flex-wrap: wrap;
 }
 .hp-continue-card:hover { border-color: var(--primary); }
-.hp-continue-left { display: flex; align-items: center; gap: 8px; }
+.hp-continue-quiz {
+  border-color: rgba(99,102,241,0.3);
+  background: linear-gradient(135deg, var(--bg-secondary), rgba(99,102,241,0.04));
+}
+.hp-continue-quiz:hover { border-color: var(--primary); box-shadow: 0 4px 16px rgba(99,102,241,0.1); }
+.hp-continue-left { display: flex; align-items: center; gap: 10px; }
+.hp-continue-play {
+  color: var(--primary); background: rgba(99,102,241,0.12);
+  padding: 8px; border-radius: 10px; width: 34px; height: 34px; flex-shrink: 0;
+}
 .hp-continue-spark { color: #f59e0b; }
-.hp-continue-label { font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); }
+.hp-continue-label { font-size: 0.72rem; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; }
+.hp-continue-title { margin: 2px 0 0; font-size: 0.95rem; font-weight: 600; color: var(--text-primary); }
 .hp-continue-right { display: flex; align-items: center; gap: 12px; }
 .hp-continue-right h4 { margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--text-primary); }
+.hp-continue-score { display: flex; flex-direction: column; align-items: center; }
+.hp-continue-score-val { font-size: 1.1rem; font-weight: 800; color: var(--primary); }
+.hp-continue-score-sub { font-size: 0.68rem; color: var(--text-tertiary); }
+.hp-continue-action {
+  display: flex; align-items: center; gap: 4px; font-size: 0.82rem;
+  font-weight: 600; color: var(--primary); white-space: nowrap;
+}
 .hp-continue-progress { display: flex; align-items: center; gap: 8px; }
 .hp-continue-bar { width: 80px; height: 5px; background: var(--bg-tertiary); border-radius: 3px; overflow: hidden; }
 .hp-continue-bar-fill { height: 100%; background: var(--primary); border-radius: 3px; }
@@ -643,6 +734,16 @@ const styles = `
   cursor: pointer; transition: all 0.2s;
 }
 .hp-start-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+.hp-start-btn-review {
+  background: var(--bg-tertiary); color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+.hp-start-btn-review:hover { border-color: var(--primary); color: var(--text-primary); }
+.hp-topic-done {
+  border-color: rgba(34,197,94,0.25) !important;
+  background: linear-gradient(135deg, var(--bg-tertiary), rgba(34,197,94,0.04));
+}
+.hp-topic-check { color: #22c55e; margin-right: 4px; vertical-align: -2px; }
 
 .hp-topics-empty {
   text-align: center; padding: 24px; color: var(--text-tertiary);

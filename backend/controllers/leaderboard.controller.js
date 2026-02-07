@@ -4,7 +4,9 @@ import UserProgress from "../models/userProgress.model.js";
 // Get global leaderboard based on real user progress
 export const getGlobalLeaderboard = async (req, res) => {
   try {
-    const { page = 1, limit = 50, timeframe = 'all' } = req.query;
+    const { page: rawPage = 1, limit: rawLimit = 50, timeframe = 'all' } = req.query;
+    const page = parseInt(rawPage) || 1;
+    const limit = parseInt(rawLimit) || 50;
     const skip = (page - 1) * limit;
 
     // Build aggregation pipeline for leaderboard
@@ -53,22 +55,21 @@ export const getGlobalLeaderboard = async (req, res) => {
       },
       {
         $project: {
-          username: '$user.username',
+          username: '$user.name',
           name: '$user.name',
           total_xp: 1,
           level: 1,
           total_questions_correct: 1,
           total_quizzes_completed: 1,
           current_streak: 1,
-          last_activity_date: 1,
-          rank: { $add: [{ $multiply: [{ $subtract: [page, 1] }, limit] }, 1] }
+          last_activity_date: 1
         }
       },
       {
         $skip: skip
       },
       {
-        $limit: parseInt(limit)
+        $limit: limit
       }
     );
 
@@ -88,8 +89,8 @@ export const getGlobalLeaderboard = async (req, res) => {
       data: {
         leaderboard: leaderboardWithRank,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page,
+          limit,
           total: totalUsers,
           pages: Math.ceil(totalUsers / limit)
         },
@@ -110,7 +111,9 @@ export const getGlobalLeaderboard = async (req, res) => {
 export const getSubjectLeaderboard = async (req, res) => {
   try {
     const { subject } = req.params;
-    const { page = 1, limit = 50 } = req.query;
+    const { page: rawPage = 1, limit: rawLimit = 50 } = req.query;
+    const page = parseInt(rawPage) || 1;
+    const limit = parseInt(rawLimit) || 50;
     const skip = (page - 1) * limit;
 
     const pipeline = [
@@ -146,7 +149,7 @@ export const getSubjectLeaderboard = async (req, res) => {
       },
       {
         $project: {
-          username: '$user.username',
+          username: '$user.name',
           name: '$user.name',
           questions_correct: '$subject_progress.questions_correct',
           questions_attempted: '$subject_progress.questions_attempted',
@@ -160,7 +163,7 @@ export const getSubjectLeaderboard = async (req, res) => {
         $skip: skip
       },
       {
-        $limit: parseInt(limit)
+        $limit: limit
       }
     ];
 
@@ -186,8 +189,8 @@ export const getSubjectLeaderboard = async (req, res) => {
       data: {
         leaderboard: leaderboardWithRank,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page,
+          limit,
           total,
           pages: Math.ceil(total / limit)
         },
@@ -211,7 +214,7 @@ export const getUserRanking = async (req, res) => {
     
     // Get user's progress
     const userProgress = await UserProgress.findOne({ user_id: userId })
-      .populate('user_id', 'username name');
+      .populate('user_id', 'name');
 
     if (!userProgress) {
       return res.status(404).json({
@@ -251,7 +254,8 @@ export const getUserRanking = async (req, res) => {
       },
       {
         $project: {
-          username: '$user.username',
+          username: '$user.name',
+          name: '$user.name',
           total_xp: 1,
           level: 1,
           total_questions_correct: 1
@@ -269,7 +273,7 @@ export const getUserRanking = async (req, res) => {
       success: true,
       data: {
         userStats: {
-          username: userProgress.user_id.username,
+          username: userProgress.user_id.name,
           name: userProgress.user_id.name,
           globalRank,
           total_xp: userProgress.total_xp,
