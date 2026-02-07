@@ -190,7 +190,7 @@ export default function AchievementsPage() {
       </div>
 
       <style>{`
-        .achievements-page { max-width: 1000px; margin: 0 auto; }
+        .achievements-page { max-width: 1000px; margin: 0 auto; margin-bottom: 50px; padding: 20px; }
         .centered { min-height: 60vh; display: flex; align-items: center; justify-content: center; }
         .icon-large { font-size: 64px; margin-bottom: 16px; }
         

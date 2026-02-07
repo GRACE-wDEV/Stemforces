@@ -52,6 +52,35 @@ router.get("/me/stats", protect, async (req, res) => {
       earnedAt: a.earned_at
     }));
     
+    // Daily activity for graphs (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const dailyActivity = (progress.daily_activity || [])
+      .filter(d => new Date(d.date) >= thirtyDaysAgo)
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .map(d => ({
+        date: d.date,
+        questions: d.questions_answered,
+        xp: d.xp_gained,
+        timeSpent: d.time_spent
+      }));
+
+    // Recent quiz attempts for score trend (last 20)
+    const recentQuizzes = (progress.quiz_attempts || [])
+      .slice(-20)
+      .map(qa => ({
+        quizId: qa.quiz_id?.toString(),
+        subject: qa.subject,
+        score: qa.score,
+        questionsCorrect: qa.questions_correct,
+        questionsTotal: qa.questions_total,
+        timeTaken: qa.time_taken,
+        completedAt: qa.completed_at
+      }));
+
+    // Member since
+    const user = await User.findById(userId).select('createdAt');
+
     res.json({
       success: true,
       data: {
@@ -67,7 +96,10 @@ router.get("/me/stats", protect, async (req, res) => {
         subjectProgress: progress.subject_progress || [],
         recentBadges,
         lastActivity: progress.last_activity_date,
-        completedQuizIds: (progress.quiz_attempts || []).map(qa => qa.quiz_id?.toString()).filter(Boolean)
+        completedQuizIds: (progress.quiz_attempts || []).map(qa => qa.quiz_id?.toString()).filter(Boolean),
+        dailyActivity,
+        recentQuizzes,
+        memberSince: user?.createdAt
       }
     });
   } catch (error) {
