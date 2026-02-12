@@ -61,7 +61,17 @@ export const getGlobalLeaderboard = async (req, res) => {
           total_quizzes_completed: 1,
           current_streak: 1,
           last_activity_date: 1,
-          rank: { $add: [{ $multiply: [{ $subtract: [page, 1] }, limit] }, 1] }
+          rank: {
+            $add: [
+              {
+                $multiply: [
+                  { $toInt: { $subtract: [page, 1] } },
+                  { $toInt: limit }
+                ]
+              },
+              1
+            ]
+          }
         }
       },
       {
