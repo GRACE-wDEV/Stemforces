@@ -40,10 +40,9 @@ const battleRoomSchema = new mongoose.Schema(
       isPrivate: { type: Boolean, default: false }
     },
     
-    // Questions for the battle
+    // Questions for the battle (can be ObjectId refs or embedded objects for AI-generated)
     questions: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Question"
+      type: mongoose.Schema.Types.Mixed
     }],
     
     // Battle progress

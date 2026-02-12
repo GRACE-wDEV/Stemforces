@@ -3,6 +3,7 @@ import Quiz from "../models/quiz.model.js";
 import User from "../models/user.model.js";
 import UserProgress from "../models/userProgress.model.js";
 import Achievement from "../models/achievement.model.js";
+import Streak from "../models/streak.model.js";
 
 // Helper function to get real user stats
 const getUserStats = async (userId) => {
@@ -169,7 +170,7 @@ export const getHomePageData = async (req, res) => {
     ];
 
     // ── Parallel data fetch (single round-trip batch) ──
-    const [questions, quizzes, userProgress, rankCount, recentAchievements] = await Promise.all([
+    const [questions, quizzes, userProgress, rankCount, recentAchievements, userStreak] = await Promise.all([
       // All published questions (lean for speed)
       Question.find({ deleted_at: null, published: true })
         .select('subject source title difficulty points')
@@ -187,6 +188,8 @@ export const getHomePageData = async (req, res) => {
       userId
         ? Achievement.find({ user_id: userId }).sort({ earned_at: -1 }).limit(5).lean()
         : [],
+      // User streak data
+      userId ? Streak.findOne({ user_id: userId }).lean() : null,
     ]);
 
     // Compute rank in one query now that we have XP
@@ -214,6 +217,52 @@ export const getHomePageData = async (req, res) => {
         isGuest: false,
       };
     })();
+
+    // Build weekly activity from streak data
+    let weeklyActivity = [];
+    if (userStreak) {
+      // Get weekly activity for the last 7 days
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+
+      const weeklyActivityData = userStreak.weeklyActivity
+        .filter(a => new Date(a.date) >= weekAgo)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      // Fill in missing days
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        date.setHours(0, 0, 0, 0);
+
+        const activity = weeklyActivityData.find(a =>
+          new Date(a.date).toDateString() === date.toDateString()
+        );
+
+        weeklyActivity.push({
+          date: date.toISOString(),
+          dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
+          active: !!activity,
+          questionsAnswered: activity?.questionsAnswered || 0,
+          xpEarned: activity?.xpEarned || 0
+        });
+      }
+    } else {
+      // Default empty week for users without streak data
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        date.setHours(0, 0, 0, 0);
+
+        weeklyActivity.push({
+          date: date.toISOString(),
+          dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
+          active: false,
+          questionsAnswered: 0,
+          xpEarned: 0
+        });
+      }
+    }
 
     // Build subject_progress lookup map (O(1) per subject instead of O(n) DB call)
     const progressMap = {};

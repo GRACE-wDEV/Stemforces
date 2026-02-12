@@ -58,6 +58,7 @@ const HomePage = () => {
     totalQuestions: 0, correctAnswers: 0, streak: 0,
     xp: 0, level: 1, rank: 0, timeSpent: 0, averageScore: 0
   };
+  const weeklyActivity = homeData?.data?.weeklyActivity || [];
   const recentAchievements = homeData?.data?.recentAchievements || [];
   const continueData = homeData?.data?.continueData || null;
   const completedQuizIds = useMemo(() => new Set(continueData?.completedQuizIds || []), [continueData]);
@@ -460,8 +461,8 @@ const HomePage = () => {
               <div className="hp-streak-num">{userStats.streak}</div>
               <div className="hp-streak-label">Day Streak</div>
               <div className="hp-streak-dots">
-                {['M','T','W','T','F','S','S'].map((d, i) => (
-                  <div key={i} className={`hp-streak-dot ${i < (userStats.streak % 7) ? 'active' : ''}`}>{d}</div>
+                {weeklyActivity.map((day, i) => (
+                  <div key={i} className={`hp-streak-dot ${day.active ? 'active' : ''}`}>{day.dayName.charAt(0)}</div>
                 ))}
               </div>
             </div>

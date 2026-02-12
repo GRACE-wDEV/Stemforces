@@ -2,6 +2,8 @@ import BattleRoom from "../models/battleRoom.model.js";
 import Question from "../models/question.model.js";
 import UserProgress from "../models/userProgress.model.js";
 import Achievement from "../models/achievement.model.js";
+import geminiService from '../services/gemini.service.js';
+import User from '../models/user.model.js';
 
 // Create a new battle room
 export const createBattleRoom = async (req, res) => {
@@ -225,33 +227,68 @@ export const startBattle = async (req, res) => {
       });
     }
     
-    // Fetch questions
-    const query = { published: true, deleted_at: null };
-    if (room.config.subject) {
-      query.subject = room.config.subject;
+    // Generate AI questions for battle
+    const hostUser = await User.findById(room.host).select('+geminiApiKey');
+    const apiKey = hostUser?.geminiApiKey || null;
+
+    let questions = [];
+    try {
+      const aiResult = await geminiService.generateBattleQuestionsBatch(
+        apiKey,
+        room.config.subject || 'General Knowledge',
+        room.config.difficulty === 'mixed' ? 'medium' : room.config.difficulty,
+        room.config.questionsCount
+      );
+
+      if (aiResult.success && aiResult.questions?.length >= Math.min(3, room.config.questionsCount)) {
+        questions = aiResult.questions.slice(0, room.config.questionsCount);
+      } else {
+        throw new Error('AI generation failed');
+      }
+    } catch (aiError) {
+      console.warn('AI question generation failed, falling back to database questions:', aiError.message);
+
+      // Fallback to database questions
+      const query = { published: true, deleted_at: null };
+      if (room.config.subject) {
+        query.subject = room.config.subject;
+      }
+      if (room.config.difficulty && room.config.difficulty !== 'mixed') {
+        query.difficulty = room.config.difficulty;
+      }
+
+      const dbQuestions = await Question.aggregate([
+        { $match: query },
+        { $sample: { size: room.config.questionsCount } }
+      ]);
+
+      if (dbQuestions.length < room.config.questionsCount) {
+        return res.status(400).json({
+          success: false,
+          message: `Not enough questions available. Found ${dbQuestions.length}, need ${room.config.questionsCount}`
+        });
+      }
+
+      questions = dbQuestions.map(q => ({
+        _id: q._id,
+        title: q.title,
+        subject: q.subject,
+        difficulty: q.difficulty,
+        options: q.options,
+        correctAnswer: q.correctAnswer,
+        explanation: q.explanation,
+        points: q.points || 10,
+        timeLimit: 20
+      }));
     }
-    if (room.config.difficulty && room.config.difficulty !== 'mixed') {
-      query.difficulty = room.config.difficulty;
-    }
-    
-    const questions = await Question.aggregate([
-      { $match: query },
-      { $sample: { size: room.config.questionsCount } }
-    ]);
-    
-    if (questions.length < room.config.questionsCount) {
-      return res.status(400).json({
-        success: false,
-        message: `Not enough questions available. Found ${questions.length}, need ${room.config.questionsCount}`
-      });
-    }
-    
-    room.questions = questions.map(q => q._id);
+
+    // Store questions as embedded objects
+    room.questions = questions;
     room.status = 'in-progress';
     room.startedAt = new Date(Date.now() + 5000); // 5 second countdown
-    
+
     await room.save();
-    
+
     // Format questions for response (hide answers)
     const formattedQuestions = questions.map((q, index) => ({
       id: q._id,
@@ -265,7 +302,7 @@ export const startBattle = async (req, res) => {
         text: opt.text
       }))
     }));
-    
+
     res.json({
       success: true,
       data: {
